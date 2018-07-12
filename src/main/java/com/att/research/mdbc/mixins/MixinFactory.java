@@ -5,8 +5,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.sql.Connection;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
-
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.MusicSqlManager;
 
@@ -64,7 +62,7 @@ public class MixinFactory {
 	 * @param info the Properties to use as an argument to the constructor
 	 * @return the newly constructed MusicInterface, or null if one cannot be found.
 	 */
-	public static MusicInterface createMusicInterface(String name, MusicSqlManager msm, DBInterface dbi, String url, Properties info) {
+	public static MusicInterface createMusicInterface(String name, String url, Properties info) {
 		for (Class<?> cl : Utils.getClassesImplementing(MusicInterface.class)) {
 			try {
 				Constructor<?> con = cl.getConstructor();
@@ -73,10 +71,10 @@ public class MixinFactory {
 					String miname = mi.getMixinName();
 					logger.info(EELFLoggerDelegate.applicationLogger, "Checking "+miname);
 					if (miname.equalsIgnoreCase(name)) {
-						con = cl.getConstructor(MusicSqlManager.class, DBInterface.class, String.class, Properties.class);
+						con = cl.getConstructor(String.class, Properties.class);
 						if (con != null) {
 							logger.info(EELFLoggerDelegate.applicationLogger,"Found match: "+miname);
-							return (MusicInterface) con.newInstance(msm, dbi, url, info);
+							return (MusicInterface) con.newInstance(url, info);
 						}
 					}
 				}

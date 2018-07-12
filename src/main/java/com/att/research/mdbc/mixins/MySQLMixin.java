@@ -8,8 +8,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,15 +23,9 @@ import com.att.research.mdbc.MusicSqlManager;
 import com.att.research.mdbc.TableInfo;
 
 import net.sf.jsqlparser.JSQLParserException;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
-import net.sf.jsqlparser.expression.operators.conditional.*;
-import net.sf.jsqlparser.expression.operators.relational.*;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
-import net.sf.jsqlparser.schema.*;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
-import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.update.Update;
 
 /**
@@ -573,6 +565,7 @@ NEW.field refers to the new value
 				int ix      = rs.getInt("IX");
 				String op   = rs.getString("OP");
 				String tbl  = rs.getString("TABLENAME");
+				@SuppressWarnings("unused")
 				String keys = rs.getString("KEYDATA");
 				JSONObject newRow = new JSONObject(new JSONTokener(rs.getString("NEWROWDATA")));
 				
@@ -617,6 +610,7 @@ NEW.field refers to the new value
 		}
 	}
 
+	@SuppressWarnings("unused")
 	@Deprecated
 	private ArrayList<String> getMusicKey(String sql) {
 		try {
@@ -686,9 +680,9 @@ NEW.field refers to the new value
 		return musicKeys;
 	}
 	
-	@SuppressWarnings("deprecation")
 	private Object[] jsonToRow(String tbl, JSONObject jo) {
 		TableInfo ti = getTableInfo(tbl);
+		@SuppressWarnings("unused")
 		int columnSize = ti.columns.size();
 		ArrayList<Object> rv = new ArrayList<Object>();
 		if (jo.has(msm.getMusicDefaultPrimaryKeyName())) { rv.add(jo.getString(msm.getMusicDefaultPrimaryKeyName())); }

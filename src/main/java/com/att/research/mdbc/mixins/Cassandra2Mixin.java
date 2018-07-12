@@ -13,17 +13,12 @@ import org.json.JSONTokener;
 import org.onap.music.datastore.PreparedQueryObject;
 import org.onap.music.exceptions.MusicServiceException;
 import org.onap.music.main.MusicCore;
-import org.onap.music.main.ResultType;
 import org.onap.music.main.ReturnType;
 
 import com.att.research.logging.EELFLoggerDelegate;
-import com.att.research.mdbc.MusicSqlManager;
 import com.att.research.mdbc.TableInfo;
-import com.datastax.driver.core.BoundStatement;
-import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
 
 /**
  * This class provides the methods that MDBC needs to access Cassandra directly in order to provide persistence
@@ -42,8 +37,8 @@ public class Cassandra2Mixin extends CassandraMixin {
 		super();
 	}
 
-	public Cassandra2Mixin(MusicSqlManager msm, DBInterface dbi, String url, Properties info) {
-		super(msm, dbi, url, info);
+	public Cassandra2Mixin(String url, Properties info) {
+		super(url, info);
 	}
 
 	/**
@@ -76,8 +71,8 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param tableName the table to initialize MUSIC for
 	 */
 	@Override
-	public void initializeMusicForTable(String tableName) {
-		super.initializeMusicForTable(tableName);
+	public void initializeMusicForTable(TableInfo ti, String tableName) {
+		super.initializeMusicForTable(ti, tableName);
 	}
 
 	/**
@@ -86,7 +81,7 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param tableName the table to create a "dirty" table for
 	 */
 	@Override
-	public void createDirtyRowTable(String tableName) {
+	public void createDirtyRowTable(TableInfo ti, String tableName) {
 		if (!dirty_table_created) {
 			String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (tablename TEXT, replica TEXT, keyset TEXT, PRIMARY KEY(tablename, replica, keyset));", music_ns, DIRTY_TABLE);
 			executeMusicWriteQuery(cql);
@@ -109,11 +104,12 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * primary key are copied into the dirty row table.
 	 */
 	@Override
-	public void markDirtyRow(String tableName, Object[] keys) {
+	public void markDirtyRow(TableInfo ti, String tableName, Object[] keys) {
 		String cql = String.format("INSERT INTO %s.%s (tablename, replica, keyset) VALUES (?, ?, ?);", music_ns, DIRTY_TABLE);
 		/*Session sess = getMusicSession();
 		PreparedStatement ps = getPreparedStatementFromCache(cql);*/
-		Object[] values = new Object[] { tableName, "", buildJSON(tableName, keys) };
+		@SuppressWarnings("unused")
+		Object[] values = new Object[] { tableName, "", buildJSON(ti, tableName, keys) };
 		PreparedQueryObject pQueryObject = null;
 		for (String repl : allReplicaIds) {
 			/*if (!repl.equals(myId)) {
@@ -130,17 +126,16 @@ public class Cassandra2Mixin extends CassandraMixin {
 			pQueryObject.appendQueryString(cql);
 			pQueryObject.addValue(tableName);
 			pQueryObject.addValue(repl);
-			pQueryObject.addValue(buildJSON(tableName, keys));
+			pQueryObject.addValue(buildJSON(ti, tableName, keys));
 			ReturnType rt = MusicCore.eventualPut(pQueryObject);
 			if(rt.getResult().getResult().toLowerCase().equals("failure")) {
 				System.out.println("Failure while critical put..."+rt.getMessage());
 			}
 		}
 	}
-	private String buildJSON(String tableName, Object[] keys) {
+	private String buildJSON(TableInfo ti, String tableName, Object[] keys) {
 		// Build JSON string representing this keyset
 		JSONObject jo = new JSONObject();
-		TableInfo ti = dbi.getTableInfo(tableName);
 		int j = 0;
 		for (int i = 0; i < ti.columns.size(); i++) {
 			if (ti.iskey.get(i)) {
@@ -155,18 +150,18 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param keys the primary key values to use in the DELETE.  Note: this is *only* the primary keys, not a full table row.
 	 */
 	@Override
-	public void cleanDirtyRow(String tableName, Object[] keys) {
+	public void cleanDirtyRow(TableInfo ti, String tableName, Object[] keys) {
 		String cql = String.format("DELETE FROM %s.%s WHERE tablename = ? AND replica = ? AND keyset = ?;", music_ns, DIRTY_TABLE);
 		//Session sess = getMusicSession();
 		//PreparedStatement ps = getPreparedStatementFromCache(cql);
-		Object[] values = new Object[] { tableName, myId, buildJSON(tableName, keys) };
+		Object[] values = new Object[] { tableName, myId, buildJSON(ti,tableName, keys) };
 		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + values[0] + " " + values[1] + " " + values[2]);
 		
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		pQueryObject.appendQueryString(cql);
 		pQueryObject.addValue(tableName);
 		pQueryObject.addValue(myId);
-		pQueryObject.addValue(buildJSON(tableName, keys));
+		pQueryObject.addValue(buildJSON(ti,tableName, keys));
 		ReturnType rt = MusicCore.eventualPut(pQueryObject);
 		if(rt.getResult().getResult().toLowerCase().equals("failure")) {
 			logger.error(EELFLoggerDelegate.errorLogger, "Failure while eventualPut...: "+rt.getMessage());
@@ -185,7 +180,7 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 */
 	@SuppressWarnings("deprecation")
 	@Override
-	public List<Map<String,Object>> getDirtyRows(String tableName) {
+	public List<Map<String,Object>> getDirtyRows(TableInfo ti, String tableName) {
 		String cql = String.format("SELECT keyset FROM %s.%s WHERE tablename = ? AND replica = ?;", music_ns, DIRTY_TABLE);
 		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + tableName + " " + myId);
 		
@@ -209,7 +204,6 @@ public class Cassandra2Mixin extends CassandraMixin {
 			results = sess.execute(bound);
 		}*/
 		List<Map<String,Object>> list = new ArrayList<Map<String,Object>>();
-		TableInfo ti = dbi.getTableInfo(tableName);
 		for (Row row : results) {
 			String json = row.getString("keyset");
 			JSONObject jo = new JSONObject(new JSONTokener(json));
@@ -264,8 +258,8 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param oldRow This is a copy of the old row being deleted
 	 */
 	@Override
-	public void deleteFromEntityTableInMusic(String tableName, Object[] oldRow) {
-		super.deleteFromEntityTableInMusic(tableName, oldRow);
+	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, Object[] oldRow) {
+		super.deleteFromEntityTableInMusic(ti, tableName, oldRow);
 	}
 	/**
 	 * This method is called whenever there is a SELECT on a local SQL table, wherein it first checks the local
@@ -273,8 +267,8 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param tableName This is the table on which the select is being performed
 	 */
 	@Override
-	public void readDirtyRowsAndUpdateDb(String tableName) {
-		super.readDirtyRowsAndUpdateDb(tableName);
+	public void readDirtyRowsAndUpdateDb(DBInterface dbi, String tableName) {
+		super.readDirtyRowsAndUpdateDb(dbi, tableName);
 	}
 
 	/**
@@ -286,7 +280,7 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param changedRow This is information about the row that has changed
 	 */
 	@Override
-	public void updateDirtyRowAndEntityTableInMusic(String tableName, Object[] changedRow) {
-		super.updateDirtyRowAndEntityTableInMusic(tableName, changedRow);
+	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, Object[] changedRow) {
+		super.updateDirtyRowAndEntityTableInMusic(ti, tableName, changedRow);
 	}
 }

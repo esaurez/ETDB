@@ -29,7 +29,11 @@ package com.att.research.exceptions;
 public class MDBCServiceException extends Exception {
 
 
-    private int errorCode;
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private int errorCode;
     private String errorMessage;
 
     public int getErrorCode() {

@@ -5,7 +5,6 @@ import java.io.Reader;
 import java.nio.ByteBuffer;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,7 +22,6 @@ import org.onap.music.main.MusicCore;
 import org.onap.music.main.ReturnType;
 
 import com.att.research.logging.EELFLoggerDelegate;
-import com.att.research.mdbc.MusicSqlManager;
 import com.att.research.mdbc.TableInfo;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.ColumnDefinitions;
@@ -31,7 +29,6 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
 
 /**
  * This class provides the methods that MDBC needs to access Cassandra directly in order to provide persistence
@@ -70,8 +67,8 @@ public class CassandraMixin implements MusicInterface {
 	/** The default primary string column, if none is provided. */
 	public static final String MDBC_PRIMARYKEY_NAME = "mdbc_cuid";
 	public static final String MDBC_PRIMARYKEY_TYPE = "uuid";
+	public static final String MUSIC_NAMESPACE = "namespace";
 
-	
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(CassandraMixin.class);
 	
 	private static final Map<Integer, String> typemap         = new HashMap<Integer, String>();
@@ -98,7 +95,7 @@ public class CassandraMixin implements MusicInterface {
 	}
 
 	//protected final Logger logger;
-	protected final DBInterface dbi;
+	protected TxCommitProgress txProgress;
 	protected final String music_ns;
 	protected final String myId;
 	protected final String[] allReplicaIds;
@@ -112,7 +109,6 @@ public class CassandraMixin implements MusicInterface {
 
 	public CassandraMixin() {
 		//this.logger         = null;
-		this.dbi            = null;
 		this.musicAddress   = null;
 		this.music_ns       = null;
 		this.music_rfactor  = 0;
@@ -120,8 +116,7 @@ public class CassandraMixin implements MusicInterface {
 		this.allReplicaIds  = null;
 	}
 
-	public CassandraMixin(MusicSqlManager msm, DBInterface dbi, String url, Properties info) {
-		this.dbi = dbi;
+	public CassandraMixin(String url, Properties info) {
 		// Default values -- should be overridden in the Properties
 		// Default to using the host_ids of the various peers as the replica IDs (this is probably preferred)
 		this.musicAddress   = info.getProperty(KEY_MUSIC_ADDRESS, DEFAULT_MUSIC_ADDRESS);
@@ -137,7 +132,7 @@ public class CassandraMixin implements MusicInterface {
 		this.allReplicaIds  = info.getProperty(KEY_REPLICAS, getAllHostIds()).split(",");
 		logger.info(EELFLoggerDelegate.applicationLogger,"MusicSqlManager: allReplicaIds="+info.getProperty(KEY_REPLICAS, this.myId));
 
-		this.music_ns       = dbi.getDatabaseName();
+		this.music_ns       = info.getProperty(MUSIC_NAMESPACE); 
 		logger.info(EELFLoggerDelegate.applicationLogger,"MusicSqlManager: music_ns="+music_ns);
 	}
 
@@ -174,7 +169,12 @@ public class CassandraMixin implements MusicInterface {
 			musicSession = null;
 		}
 	}
-
+	@Override
+	public void initializeMdbcDataStructures() {
+		
+		
+	}
+	
 	/**
 	 * This method creates a keyspace in Music/Cassandra to store the data corresponding to the SQL tables.
 	 * The keyspace name comes from the initialization properties passed to the JDBC driver.
@@ -193,14 +193,13 @@ public class CassandraMixin implements MusicInterface {
 	 * @param tableName the table to initialize MUSIC for
 	 */
 	@Override
-	public void initializeMusicForTable(String tableName) {
+	public void initializeMusicForTable(TableInfo ti, String tableName) {
 		/**
 		 * This code creates two tables for every table in SQL:
 		 * (i) a table with the exact same name as the SQL table storing the SQL data.
 		 * (ii) a "dirty bits" table that stores the keys in the Cassandra table that are yet to be
 		 * updated in the SQL table (they were written by some other node).
 		 */
-		TableInfo ti = dbi.getTableInfo(tableName);
 		StringBuilder fields = new StringBuilder();
 		StringBuilder prikey = new StringBuilder();
 		String pfx = "", pfx2 = "";
@@ -236,7 +235,7 @@ public class CassandraMixin implements MusicInterface {
 	 * @param tableName the table to create a "dirty" table for
 	 */
 	@Override
-	public void createDirtyRowTable(String tableName) {
+	public void createDirtyRowTable(TableInfo ti, String tableName) {
 		// create dirtybitsTable at all replicas
 //		for (String repl : allReplicaIds) {
 ////			String dirtyRowsTableName = "dirty_"+tableName+"_"+allReplicaIds[i];
@@ -244,7 +243,6 @@ public class CassandraMixin implements MusicInterface {
 //			cql = String.format("CREATE TABLE IF NOT EXISTS %s.DIRTY_%s_%s (dirtyRowKeys TEXT PRIMARY KEY);", music_ns, tableName, repl);
 //			executeMusicWriteQuery(cql);
 //		}
-		TableInfo ti = dbi.getTableInfo(tableName);
 		StringBuilder ddl = new StringBuilder("REPLICA__ TEXT");
 		StringBuilder cols = new StringBuilder("REPLICA__");
 		for (int i = 0; i < ti.columns.size(); i++) {
@@ -282,8 +280,7 @@ public class CassandraMixin implements MusicInterface {
 	 * primary key are copied into the dirty row table.
 	 */
 	@Override
-	public void markDirtyRow(String tableName, Object[] keys) {
-		TableInfo ti = dbi.getTableInfo(tableName);
+	public void markDirtyRow(TableInfo ti, String tableName, Object[] keys) {
 		StringBuilder cols = new StringBuilder("REPLICA__");
 		PreparedQueryObject pQueryObject = null;
 		StringBuilder vals = new StringBuilder("?");
@@ -303,7 +300,7 @@ public class CassandraMixin implements MusicInterface {
 		String cql = String.format("INSERT INTO %s.DIRTY_%s (%s) VALUES (%s);", music_ns, tableName, cols.toString(), vals.toString());
 		/*Session sess = getMusicSession();
 		PreparedStatement ps = getPreparedStatementFromCache(cql);*/
-		String primaryKey = getPrimaryKey(tableName, keys);
+		String primaryKey = getPrimaryKey(ti,tableName, keys);
 		System.out.println("markDirtyRow: PK value: "+primaryKey);
 		
 		Object pkObj = null;
@@ -337,8 +334,7 @@ public class CassandraMixin implements MusicInterface {
 	 * @param keys the primary key values to use in the DELETE.  Note: this is *only* the primary keys, not a full table row.
 	 */
 	@Override
-	public void cleanDirtyRow(String tableName, Object[] keys) {
-		TableInfo ti = dbi.getTableInfo(tableName);
+	public void cleanDirtyRow(TableInfo ti, String tableName, Object[] keys) {
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		StringBuilder cols = new StringBuilder("REPLICA__=?");
 		List<Object> vallist = new ArrayList<Object>();
@@ -373,7 +369,7 @@ public class CassandraMixin implements MusicInterface {
 	 * @return a list of maps; each list item is a map of the primary key names and values for that "dirty row".
 	 */
 	@Override
-	public List<Map<String,Object>> getDirtyRows(String tableName) {
+	public List<Map<String,Object>> getDirtyRows(TableInfo ti, String tableName) {
 		String cql = String.format("SELECT * FROM %s.DIRTY_%s WHERE REPLICA__=?;", music_ns, tableName);
 		ResultSet results = null;
 		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql);
@@ -458,8 +454,7 @@ public class CassandraMixin implements MusicInterface {
 	 * @param oldRow This is a copy of the old row being deleted
 	 */
 	@Override
-	public void deleteFromEntityTableInMusic(String tableName, Object[] oldRow) {
-		TableInfo ti = dbi.getTableInfo(tableName);
+	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, Object[] oldRow) {
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		if (ti.hasKey()) {
 			assert(ti.columns.size() == oldRow.length);
@@ -497,7 +492,7 @@ public class CassandraMixin implements MusicInterface {
 		synchronized (sess) {
 			sess.execute(bound);
 		}*/
-		String primaryKey = getPrimaryKey(tableName, oldRow);
+		String primaryKey = getPrimaryKey(ti,tableName, oldRow);
 		if(MusicMixin.criticalTables.contains(tableName)) {
 			ReturnType rt = null;
 			try {
@@ -516,7 +511,7 @@ public class CassandraMixin implements MusicInterface {
 			}
 		}
 		// Mark the dirty rows in music for all the replicas but us
-		markDirtyRow(tableName, oldRow);
+		markDirtyRow(ti,tableName, oldRow);
 	}
 
 	public Set<String> getMusicTableSet(String ns) {
@@ -534,9 +529,10 @@ public class CassandraMixin implements MusicInterface {
 	 * @param tableName This is the table on which the select is being performed
 	 */
 	@Override
-	public void readDirtyRowsAndUpdateDb(String tableName) {
+	public void readDirtyRowsAndUpdateDb(DBInterface dbi, String tableName) {
 		// Read dirty rows of this table from Music
-		List<Map<String,Object>> objlist = getDirtyRows(tableName);
+		TableInfo ti = dbi.getTableInfo(tableName);
+		List<Map<String,Object>> objlist = getDirtyRows(ti,tableName);
 		PreparedQueryObject pQueryObject = null;
 		String pre_cql = String.format("SELECT * FROM %s.%s WHERE ", music_ns, tableName);
 		List<Object> vallist = new ArrayList<Object>();
@@ -575,16 +571,16 @@ public class CassandraMixin implements MusicInterface {
 			List<Row> rows = dirtyRows.all();
 			if (rows.isEmpty()) {
 				// No rows, the row must have been deleted
-				deleteRowFromSqlDb(tableName, map);
+				deleteRowFromSqlDb(dbi,tableName, map);
 			} else {
 				for (Row row : rows) {
-					writeMusicRowToSQLDb(tableName, row);
+					writeMusicRowToSQLDb(dbi,tableName, row);
 				}
 			}
 		}
 	}
 
-	private void deleteRowFromSqlDb(String tableName, Map<String, Object> map) {
+	private void deleteRowFromSqlDb(DBInterface dbi, String tableName, Map<String, Object> map) {
 		dbi.deleteRowFromSqlDb(tableName, map);
 		TableInfo ti = dbi.getTableInfo(tableName);
 		List<Object> vallist = new ArrayList<Object>();
@@ -595,14 +591,14 @@ public class CassandraMixin implements MusicInterface {
 				vallist.add(val);
 			}
 		}
-		cleanDirtyRow(tableName, vallist.toArray());
+		cleanDirtyRow(ti, tableName, vallist.toArray());
 	}
 	/**
 	 * This functions copies the contents of a row in Music into the corresponding row in the SQL table
 	 * @param tableName This is the name of the table in both Music and swl
 	 * @param musicRow This is the row in Music that is being copied into SQL
 	 */
-	private void writeMusicRowToSQLDb(String tableName, Row musicRow) {
+	private void writeMusicRowToSQLDb(DBInterface dbi, String tableName, Row musicRow) {
 		// First construct the map of columns and their values
 		TableInfo ti = dbi.getTableInfo(tableName);
 		Map<String, Object> map = new HashMap<String, Object>();
@@ -639,7 +635,8 @@ public class CassandraMixin implements MusicInterface {
 //			}
 //		}
 
-		cleanDirtyRow(tableName, vallist.toArray());
+		ti = dbi.getTableInfo(tableName);
+		cleanDirtyRow(ti, tableName, vallist.toArray());
 
 //		String selectQuery = "select "+ primaryKeyName+" FROM "+tableName+" WHERE "+primaryKeyName+"="+primaryKeyValue+";";
 //		java.sql.ResultSet rs = executeSQLRead(selectQuery);
@@ -700,9 +697,8 @@ public class CassandraMixin implements MusicInterface {
 	 * @param changedRow This is information about the row that has changed
 	 */
 	@Override
-	public void updateDirtyRowAndEntityTableInMusic(String tableName, Object[] changedRow) {
+	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, Object[] changedRow) {
 		// Build the CQL command
-		TableInfo ti = dbi.getTableInfo(tableName);
 		StringBuilder fields = new StringBuilder();
 		StringBuilder values = new StringBuilder();
 		String rowid = tableName;
@@ -750,7 +746,7 @@ public class CassandraMixin implements MusicInterface {
 			String cql = String.format("INSERT INTO %s.%s (%s) VALUES (%s);", music_ns, tableName, fields.toString(), values.toString());
 			
 			pQueryObject.appendQueryString(cql);
-			String primaryKey = getPrimaryKey(tableName, changedRow);
+			String primaryKey = getPrimaryKey(ti,tableName, changedRow);
 			updateMusicDB(tableName, primaryKey, pQueryObject);
 			
 			/*PreparedStatement ps = getPreparedStatementFromCache(cql);
@@ -761,7 +757,7 @@ public class CassandraMixin implements MusicInterface {
 				sess.execute(bound);
 			}*/
 			// Mark the dirty rows in music for all the replicas but us
-			markDirtyRow(tableName, changedRow);
+			markDirtyRow(ti,tableName, changedRow);
 		}
 	}
 	
@@ -772,6 +768,7 @@ public class CassandraMixin implements MusicInterface {
 	 * @param newrow
 	 * @return
 	 */
+	@SuppressWarnings("unused")
 	private String getUid(String tableName, String string, Object[] rowValues) {
 		// TODO Auto-generated method stub
 		// Update local MUSIC node. Note: in Cassandra you can insert again on an existing key..it becomes an update
@@ -886,8 +883,7 @@ public class CassandraMixin implements MusicInterface {
 		return UUID.randomUUID().toString();
 	}
 	
-	public String getMusicKeyFromRow(String table, Object[] dbRow) {
-		TableInfo ti = dbi.getTableInfo(table);
+	public String getMusicKeyFromRow(TableInfo ti, String table, Object[] dbRow) {
 		ResultSet musicResults = executeMusicRead("SELECT * FROM " +music_ns + "." + table);
 		while (!musicResults.isExhausted()) {
 			Row musicRow = musicResults.one();
@@ -919,8 +915,7 @@ public class CassandraMixin implements MusicInterface {
 		return sameRow;
 	}
 	
-	public String getPrimaryKey(String tableName, Object[] changedRow) {
-		TableInfo ti = dbi.getTableInfo(tableName);
+	public String getPrimaryKey(TableInfo ti, String tableName, Object[] changedRow) {
 		for (int i = 0; i < changedRow.length; i++) {
 			if (ti.iskey.get(i)) {
 				return changedRow[i].toString();
@@ -948,5 +943,107 @@ public class CassandraMixin implements MusicInterface {
 				System.out.println("Failure while critical put..."+rt.getMessage());
 			}
 		}
+	}
+
+	/**
+	 * This function creates the RangeInformation table. It is a two level index to
+	 * obtain the location of the transaction data structure for a given range of keys. 
+	 * The first level contain statically assigned ranges of the same size (e.g. [a-m],[n-null])
+	 * that allow to find the subranges that are created dynamically underneath.
+	 * The schema of the table is
+	 * 		* LowerKey: lower bound of the first-level range (included), text
+			* UpperKey: upper bound of the first-level range (excluded), text
+			* Ranges: array of the sub-ranges, set. Each range is composed of a tuple with components:
+				* LowerKey: lower bound of the second-level range, text
+				* UpperKey: upper bound of the second-level range, text
+				* RangeTxId: id into the TransactionInformation table, uuid
+	*/
+	private void CreateRangeInformationTable() {
+		String tableName = "RangeInformation";
+		String priKey = "lowerkey";
+		StringBuilder fields = new StringBuilder(); 
+		fields.append("lowerkey text, ");
+		fields.append("upperkey text, ");
+		fields.append("ranges set<tuple<text,text,uuid>> ");
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	/**
+	 * This function creates the TransactionInformation table. It contain information related
+	 * to the transactions happening in a given range of keys. It is associated with the second 
+	 * level subranges in the RangeInformation table. 
+	 * The schema of the table is
+	 * 		* Id, uiid. This is used as a "foreign key" in the range information table.
+	 * 		* LowerKey: lower bound of the range (included), text
+	 *		* UpperKey: upper bound of the range (excluded), text
+	 *		* RedoLogtableName: name of the redo table where the transactions are stored, text
+	 *		* Transactions: list of uiids associated to the redologtable
+	 *
+	 * \TODO there are big issues with using lists in Cassandra because it needs to fetch it as a whole.
+	 * 		 Later we may need to restructure this list into either a completely different table, or just
+	 * 		 split the row into multiple rows, with only the last row updatable and the other ones delete-read only
+	 */
+	private void CreateTransactionInformationTable() {
+		String tableName = "TransactionInformation";
+		String priKey = "id";
+		StringBuilder fields = new StringBuilder(); 
+		fields.append("id uuid, ");
+		fields.append("lowerkey text, ");
+		fields.append("upperkey text, ");
+		fields.append("redologtable text, ");
+		fields.append("transactions list<tuple<text,text>> ");//\TODO check if text is the right type, see CreateRedoLogTable function
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	/**
+	 * This function creates the RedoLog table. It contain information related to 
+	 * 	* LeaseId: id associated with the lease, text
+	 * 	* LeaseCounter: transaction number under this lease, bigint \TODO this may need to be a varint later 
+	 *  * TransactionLog: set of tuples (order of actions within transaction doesn't matter). Each tuple is composed of:
+	 *  	* key: text
+	 *  	* oldval: text
+	 *  	* newval: text 
+	 *  \NOTE To keep the TransactionLog as a set (instead of a list), we need to make sure that there are no repeated keys in the log, before submitting 
+	 */
+	private void CreateRedoRecordsTable(int redoTableNumber) {
+		String tableName = "RedoRecords";
+		if(redoTableNumber >= 0) {
+			StringBuilder table = new StringBuilder();
+			table.append(tableName);
+			table.append("-");
+			table.append(Integer.toString(redoTableNumber));
+			tableName=table.toString();
+		}
+		String priKey = "leaseid,counter";
+		StringBuilder fields = new StringBuilder(); 
+		fields.append("leaseid text, ");
+		fields.append("leasecounter bigint, ");
+		fields.append("transactionlog set<tuple<text,text,text>> ");//notice lack of ','
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	private void CreateLatestRedoIdTable() {
+		String tableName = "LatestRedoId";
+		String priKey = "TxInfoId";
+		StringBuilder fields = new StringBuilder(); 
+		fields.append("txinfoid uiid, ");
+		fields.append("leaseid text, ");
+		fields.append("leasecounter bigint, ");
+		fields.append("transactionlog set<tuple<text,text,text>> ");//notice lack of ','
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+	
+	/**
+	 * This function created all the required tables in Music related to the REDO-log  table 
+	 */
+	public void createMdbcDataStructures() {
+		CreateRedoRecordsTable(-1);//\TODO If we start partitioning the data base, we would need to use the redotable number
+		CreateTransactionInformationTable();
+		CreateRangeInformationTable();
+		CreateLatestRedoIdTable();
 	}
 }

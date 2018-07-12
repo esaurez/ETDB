@@ -33,7 +33,8 @@ public class QueryException extends Exception {
      * 
      */
     private static final long serialVersionUID = 1L;
-    private int errorCode;
+    @SuppressWarnings("unused")
+	private int errorCode;
 
 
     /**

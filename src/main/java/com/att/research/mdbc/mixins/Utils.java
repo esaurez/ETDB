@@ -12,8 +12,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
-
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.TableInfo;
 import com.datastax.driver.core.utils.Bytes;
@@ -94,6 +92,7 @@ public class Utils {
 		return results;
 	}
 
+	@SuppressWarnings("unused")
 	static List<Class<?>> getClassesImplementing(Class<?> implx) {
 		Properties pr = null;
 		try {
@@ -132,11 +131,13 @@ public class Utils {
 			logger.error("Could not load property file > " + e.getMessage());
 		}
 		
+		@SuppressWarnings("unused")
 		List<Class<?>> list = new ArrayList<Class<?>>();
 		String drivers = pr.getProperty("DEFAULT_DRIVERS");
 		for (String driver: drivers.split("[ ,]")) {
 			logger.info(EELFLoggerDelegate.applicationLogger, "Registering jdbc driver '" + driver + "'");
 			try {
+				@SuppressWarnings("unused")
 				Class<?> cl = Class.forName(driver.trim());
 			} catch (ClassNotFoundException e) {
 				logger.error(EELFLoggerDelegate.errorLogger,"Driver class "+driver+" not found.");

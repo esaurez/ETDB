@@ -8,32 +8,20 @@ import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
 import java.sql.Clob;
-import java.sql.Connection;
 import java.sql.Date;
 import java.sql.NClob;
 import java.sql.ParameterMetaData;
-import java.sql.PreparedStatement;
 import java.sql.Ref;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
-import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Map;
 
-import org.apache.commons.lang3.StringUtils;
-
-import com.att.research.exceptions.QueryException;
 import com.att.research.logging.EELFLoggerDelegate;
-import com.att.research.logging.format.AppMessages;
-import com.att.research.logging.format.ErrorSeverity;
-import com.att.research.logging.format.ErrorTypes;
 
 /**
  * ProxyStatement is a proxy Statement that front ends Statements from the underlying JDBC driver.  It passes all operations through,
@@ -43,6 +31,7 @@ import com.att.research.logging.format.ErrorTypes;
  */
 public class MdbcCallableStatement extends MdbcPreparedStatement implements CallableStatement  {
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(MdbcCallableStatement.class);
+	@SuppressWarnings("unused")
 	private static final String DATASTAX_PREFIX = "com.datastax.driver";
 
 	public MdbcCallableStatement(Statement stmt, MusicSqlManager m) {

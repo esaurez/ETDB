@@ -19,12 +19,6 @@ import com.att.research.mdbc.mixins.MusicInterface;
 import com.att.research.mdbc.mixins.MusicMixin;
 import com.att.research.mdbc.mixins.Utils;
 
-import net.sf.jsqlparser.JSQLParserException;
-import net.sf.jsqlparser.parser.CCJSqlParserUtil;
-import net.sf.jsqlparser.statement.delete.Delete;
-import net.sf.jsqlparser.statement.insert.Insert;
-import net.sf.jsqlparser.statement.update.Update;
-
 import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.exceptions.QueryException;
 import com.att.research.logging.*;
@@ -48,16 +42,6 @@ import com.att.research.logging.format.ErrorTypes;
 * @author  Bharath Balasubramanian, Robert Eby
 */
 public class MusicSqlManager {
-	/** The property name to use to enable/disable the MusicSqlManager entirely. */
-	public static final String KEY_DISABLED         = "disabled";
-	/** The property name to use to select the DB 'mixin'. */
-	public static final String KEY_DB_MIXIN_NAME    = "MDBC_DB_MIXIN";
-	/** The property name to use to select the MUSIC 'mixin'. */
-	public static final String KEY_MUSIC_MIXIN_NAME = "MDBC_MUSIC_MIXIN";
-	/** The name of the default mixin to use for the DBInterface. */
-	public static final String DB_MIXIN_DEFAULT     = "mysql";//"h2";
-	/** The name of the default mixin to use for the MusicInterface. */
-	public static final String MUSIC_MIXIN_DEFAULT  = "cassandra2";//"cassandra2";
 
 	private static final Map<String, MusicSqlManager> msm_map = new Hashtable<String, MusicSqlManager>(); // needs to be synchronized
 
@@ -77,13 +61,13 @@ public class MusicSqlManager {
 	/**
 	 * Get a new instance of MusicSqlManager for a specific JDBC URL.
 	 * @param url the URL to look for
-	 * @param c the JDBC Connection
+	 * @param c the JDBC Connection to the cache SQL database
 	 * @param info the JDBC Properties
 	 * @return the corresponding MusicSqlManager, or null if no proxy is needed for this URL
 	 * @throws MDBCServiceException 
 	 */
 	public static MusicSqlManager getMusicSqlManager(String url, Connection c, Properties info) {
-		String s = info.getProperty(KEY_DISABLED, "false");
+		String s = info.getProperty(Configuration.KEY_DISABLED, "false");
 		if (s.equalsIgnoreCase("true")) {
 			return null;
 		}
@@ -127,17 +111,15 @@ public class MusicSqlManager {
 	 * @param info properties passed from the initial JDBC connect() call
 	 * @throws MDBCServiceException 
 	 */
-	private MusicSqlManager(String url, Connection conn, Properties info) throws MDBCServiceException {
+	private MusicSqlManager(String url, Connection conn, Properties info, MusicInterface mi) throws MDBCServiceException {
 		try {
 			info.putAll(Utils.getMdbcProperties());
-			String mixin1  = info.getProperty(KEY_DB_MIXIN_NAME, DB_MIXIN_DEFAULT);
-			String mixin2  = info.getProperty(KEY_MUSIC_MIXIN_NAME, MUSIC_MIXIN_DEFAULT);
-			this.dbi       = MixinFactory.createDBInterface(mixin1, this, url, conn, info);
-			this.mi        = MixinFactory.createMusicInterface(mixin2, this, dbi, url, info);
+			String mixinDb  = info.getProperty(Configuration.KEY_DB_MIXIN_NAME, Configuration.DB_MIXIN_DEFAULT);
+			this.dbi       = MixinFactory.createDBInterface(mixinDb, this, url, conn, info);
+			this.mi = mi;
 			this.table_set = Collections.synchronizedSet(new HashSet<String>());
 			this.autocommit = true;
-			this.mi.createKeyspace();
-			MusicMixin.loadProperties();
+
 		}catch(Exception e) {
 			throw new MDBCServiceException(e.getMessage());
 		}
@@ -199,7 +181,6 @@ public class MusicSqlManager {
 	 * Code to be run within the DB driver after a SQL statement has been executed.  This is where remote
 	 * statement actions can be copied back to Cassandra/MUSIC.
 	 * @param sql the SQL statement that was executed
-	 * @param keys that were updated in the sql call
 	 */
 	public void postStatementHook(final String sql) {
 		dbi.postStatementHook(sql);
@@ -420,10 +401,13 @@ public class MusicSqlManager {
 	 */
 	public synchronized void rollback() {
 		// transaction was rolled back - discard the updates
-		logger.info("Rollback");;
+		logger.info(EELFLoggerDelegate.applicationLogger, "Rollback");;
 		delayed_updates.clear();
 	}
+
 	public String getMusicKeysFromRow(String table, Object[] dbRow) {
 		return mi.getMusicKeyFromRow(table, dbRow);
 	}
+	
+	
 }

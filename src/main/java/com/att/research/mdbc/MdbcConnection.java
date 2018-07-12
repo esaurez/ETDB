@@ -8,7 +8,6 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -25,7 +24,6 @@ import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.logging.format.AppMessages;
 import com.att.research.logging.format.ErrorSeverity;
 import com.att.research.logging.format.ErrorTypes;
-import com.att.research.mdbc.mixins.Utils;
 
 
 /**
@@ -53,7 +51,7 @@ public class MdbcConnection implements Connection {
 
 		// Verify the tables in MUSIC match the tables in the database
 		// and create triggers on any tables that need them
-		if (mgr != null && false) {
+		if ( mgr != null ) {
 			try {
 				mgr.synchronizeTables();
 			}catch (QueryException e) {

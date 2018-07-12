@@ -8,12 +8,10 @@ import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.h2.api.Trigger;
 import org.json.JSONObject;
 
 import com.att.research.logging.EELFLoggerDelegate;
-import com.att.research.mdbc.MusicSqlManager;
 import com.att.research.mdbc.TableInfo;
 
 /**

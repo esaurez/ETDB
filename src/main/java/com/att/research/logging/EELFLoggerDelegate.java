@@ -271,6 +271,7 @@ public class EELFLoggerDelegate extends SLF4jWrapper implements EELFLogger {
 	 * @param args
 	 * @return
 	 */
+	@SuppressWarnings("unused")
 	private String formatMessage(String message, Object... args) {
 		StringBuilder sbFormattedMessage = new StringBuilder();
 		if (args != null && args.length > 0 && message != null && message != "") {

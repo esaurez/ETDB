@@ -28,6 +28,8 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 
+import com.att.research.exceptions.QueryException;
+
 /**
  * ProxyStatement is a proxy Statement that front ends Statements from the underlying JDBC driver.  It passes all operations through,
  * and invokes the MusicSqlManager when there is the possibility that database tables have been created or dropped.
@@ -1248,7 +1250,12 @@ public class ProxyStatement implements CallableStatement {
 	private void synchronizeTables(String sql) {
 		if (sql == null || sql.trim().toLowerCase().startsWith("create")) {
 			if (mgr != null) {
-				mgr.synchronizeTables();
+				try {
+					mgr.synchronizeTables();
+				} catch (QueryException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 		}
 	}

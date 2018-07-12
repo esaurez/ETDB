@@ -8,8 +8,6 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.log4j.Logger;
-import org.onap.music.datastore.MusicDataStore;
 import org.onap.music.main.MusicCore;
 
 import com.att.research.logging.EELFLoggerDelegate;

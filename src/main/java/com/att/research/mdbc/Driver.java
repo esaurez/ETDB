@@ -1,6 +1,5 @@
 package com.att.research.mdbc;
 
-import java.io.OutputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -138,8 +137,8 @@ public class Driver implements java.sql.Driver {
 		if (dr != null) {
 			DriverPropertyInfo[] dpi = dr.getPropertyInfo(newurl, info);
 			List<DriverPropertyInfo> list = Arrays.asList(dpi);
-			list.add(new DriverPropertyInfo(MusicSqlManager.KEY_DB_MIXIN_NAME,    info.getProperty(MusicSqlManager.KEY_DB_MIXIN_NAME,    MusicSqlManager.DB_MIXIN_DEFAULT)));
-			list.add(new DriverPropertyInfo(MusicSqlManager.KEY_MUSIC_MIXIN_NAME, info.getProperty(MusicSqlManager.KEY_MUSIC_MIXIN_NAME, MusicSqlManager.MUSIC_MIXIN_DEFAULT)));
+			list.add(new DriverPropertyInfo(Configuration.KEY_DB_MIXIN_NAME,    info.getProperty(Configuration.KEY_DB_MIXIN_NAME,    Configuration.DB_MIXIN_DEFAULT)));
+			list.add(new DriverPropertyInfo(Configuration.KEY_MUSIC_MIXIN_NAME, info.getProperty(Configuration.KEY_MUSIC_MIXIN_NAME, Configuration.MUSIC_MIXIN_DEFAULT)));
 			return list.toArray(new DriverPropertyInfo[0]);
 		}
 		return new DriverPropertyInfo[0];
@@ -156,7 +155,7 @@ public class Driver implements java.sql.Driver {
 
 	private String rewriteURL(String u, Properties info) {
 		logger.info(EELFLoggerDelegate.applicationLogger,"rewriteURL "+u);
-		String db = info.getProperty(MusicSqlManager.KEY_DB_MIXIN_NAME, MusicSqlManager.DB_MIXIN_DEFAULT);
+		String db = info.getProperty(Configuration.KEY_DB_MIXIN_NAME, Configuration.DB_MIXIN_DEFAULT);
 		if (db.equals("h2server"))
 			db = "h2";	// uggh! -- special case
 		return String.format("jdbc:%s:%s", db, u.substring(PROXY_PREFIX.length()));
