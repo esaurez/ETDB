@@ -260,7 +260,8 @@ mysql> describe tables;
 			// Give the triggers a way to find this MSM
 			for (String name : getTriggerNames(tableName)) {
 				logger.info(EELFLoggerDelegate.applicationLogger,"ADD trigger "+name+" to msm_map");
-				msm.register(name);
+				//\TODO fix this is an error
+				//msm.register(name);
 			}
 			// No SELECT trigger
 			executeSQLWrite(generateTrigger(tableName, "INSERT"));
@@ -344,7 +345,8 @@ NEW.field refers to the new value
 			for (String name : getTriggerNames(tableName)) {
 				logger.info(EELFLoggerDelegate.applicationLogger,"REMOVE trigger "+name+" from msmmap");
 				executeSQLWrite("DROP TRIGGER IF EXISTS " +name);
-				msm.unregister(name);
+				//\TODO Fix this is an error
+				//msm.unregister(name);
 			}
 		} catch (SQLException e) {
 			logger.error(EELFLoggerDelegate.errorLogger,"dropSQLTriggers: "+e);

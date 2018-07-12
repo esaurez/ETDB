@@ -40,7 +40,8 @@ public class H2MixinTriggerHandler implements Trigger {
 		throws SQLException {
 		this.tableName = tableName;
 		this.triggerName = triggerName;
-		this.musicHandle = MusicSqlManager.getMusicSqlManager(triggerName);
+		//\TODO fix this
+		this.musicHandle = null;//MusicSqlManager.getMusicSqlManager(triggerName);
 		if (musicHandle == null) {
 			String info = String.format(" (%s %s %b %d)", schemaName, tableName, before, type);
 			logger.info(EELFLoggerDelegate.applicationLogger,"No MusicSqlManager found for triggerName "+triggerName + info);

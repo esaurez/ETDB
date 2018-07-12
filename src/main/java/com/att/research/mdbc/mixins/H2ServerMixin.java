@@ -86,7 +86,8 @@ public class H2ServerMixin extends H2Mixin {
 			// Give the triggers a way to find this MSM
 			for (String name : getTriggerNames(tableName)) {
 				logger.error(EELFLoggerDelegate.errorLogger,"ADD trigger "+name+" to msm_map");
-				msm.register(name);
+				//\TODO Fix this is an error
+				//msm.register(name);
 			}
 			System.out.println("CREATE TRIGGER IF NOT EXISTS I_"+connId+"_" +tableName+" AFTER INSERT ON " +tableName+" FOR EACH ROW CALL \""+triggerClassName+"\"");
 			executeSQLWrite("CREATE TRIGGER IF NOT EXISTS I_"+connId+"_" +tableName+" AFTER INSERT ON " +tableName+" FOR EACH ROW CALL \""+triggerClassName+"\"");

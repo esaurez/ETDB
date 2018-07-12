@@ -157,7 +157,8 @@ public class H2Mixin implements DBInterface {
 			// Give the triggers a way to find this MSM
 			for (String name : getTriggerNames(tableName)) {
 				logger.info(EELFLoggerDelegate.applicationLogger,"ADD trigger "+name+" to msm_map");
-				msm.register(name);
+				//\TODO  Fix, this is an error (commented code)
+				//msm.register(name);
 			}
 			executeSQLWrite("CREATE TRIGGER IF NOT EXISTS I_"+connId+"_" +tableName+" AFTER INSERT ON " +tableName+" FOR EACH ROW CALL \""+triggerClassName+"\"");
 			executeSQLWrite("CREATE TRIGGER IF NOT EXISTS U_"+connId+"_" +tableName+" AFTER UPDATE ON " +tableName+" FOR EACH ROW CALL \""+triggerClassName+"\"");
@@ -180,7 +181,8 @@ public class H2Mixin implements DBInterface {
 				logger.info(EELFLoggerDelegate.applicationLogger,"REMOVE trigger "+name+" from msmmap");
 				
 				executeSQLWrite("DROP TRIGGER IF EXISTS " +name);
-				msm.unregister(name);
+				//\TODO  Fix, this is an error (commented code)
+				//msm.unregister(name);
 			}
 		} catch (SQLException e) {
 			logger.error(EELFLoggerDelegate.errorLogger,"dropSQLTriggers: "+e);
