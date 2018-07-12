@@ -9,7 +9,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
+import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.logging.EELFLoggerDelegate;
+import com.att.research.mdbc.mixins.MixinFactory;
+import com.att.research.mdbc.mixins.MusicInterface;
 import com.att.research.mdbc.mixins.Utils;
 
 /**
@@ -93,8 +96,19 @@ public class Driver implements java.sql.Driver {
 				Utils.registerDefaultDrivers();
 				dr = DriverManager.getDriver(newurl);
 			}
+
+			//\TODO  Don't create a new music interface for each driver, it needs to be global for all the connections
+	        String mixin  = info.getProperty(Configuration.KEY_MUSIC_MIXIN_NAME, Configuration.MUSIC_MIXIN_DEFAULT);
+	        MusicInterface mi = MixinFactory.createMusicInterface(mixin, url, info);
 			if (dr != null) {
-				Connection conn = new MdbcConnection(url, dr.connect(newurl, info), info);
+				Connection conn;
+				try {
+					conn = new MdbcConnection(url, dr.connect(newurl, info), info,mi);
+				} catch (MDBCServiceException e) {
+					// TODO Auto-generated catch block
+					logger.warn(EELFLoggerDelegate.applicationLogger,"Exception while creating MDBC connection: "+newurl);
+					conn = null;
+				}
 				logger.info(EELFLoggerDelegate.applicationLogger,"Connection established: "+url);
 				return conn;
 			}

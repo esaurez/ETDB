@@ -19,11 +19,13 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 
+import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.exceptions.QueryException;
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.logging.format.AppMessages;
 import com.att.research.logging.format.ErrorSeverity;
 import com.att.research.logging.format.ErrorTypes;
+import com.att.research.mdbc.mixins.MusicInterface;
 
 
 /**
@@ -40,9 +42,17 @@ public class MdbcConnection implements Connection {
 	private final Connection conn;		// the JDBC Connection to the actual underlying database
 	private final MusicSqlManager mgr;	// there should be one MusicSqlManager in use per Connection
 
-	public MdbcConnection(String url, Connection c, Properties info) {
+	public MdbcConnection(String url, Connection c, Properties info, MusicInterface mi) throws MDBCServiceException {
+		if (c == null) {
+			throw new MDBCServiceException("Connection is null");
+		}
 		this.conn = c;
-		this.mgr = MusicSqlManager.getMusicSqlManager(url, c, info);
+		try {
+			this.mgr = new MusicSqlManager(url, c, info, mi);
+		} catch (MDBCServiceException e) {
+			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
+			throw e;
+		}
 		try {
 			this.mgr.setAutoCommit(c.getAutoCommit());
 		} catch (SQLException e) {

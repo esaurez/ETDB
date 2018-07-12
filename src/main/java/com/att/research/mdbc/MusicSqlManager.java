@@ -1,22 +1,16 @@
 package com.att.research.mdbc;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Hashtable;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.TreeSet;
 
 import com.att.research.mdbc.mixins.DBInterface;
 import com.att.research.mdbc.mixins.MixinFactory;
 import com.att.research.mdbc.mixins.MusicInterface;
-import com.att.research.mdbc.mixins.MusicMixin;
 import com.att.research.mdbc.mixins.Utils;
 
 import com.att.research.exceptions.MDBCServiceException;
@@ -43,53 +37,7 @@ import com.att.research.logging.format.ErrorTypes;
 */
 public class MusicSqlManager {
 
-	private static final Map<String, MusicSqlManager> msm_map = new Hashtable<String, MusicSqlManager>(); // needs to be synchronized
-
 	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(MusicSqlManager.class);
-	
-	/**
-	 * Get the MusicSqlManager instance that applies to a specific trigger in a specific database connection.
-	 * @param key the key used to fetch the MusicSqlManager from the map.  The key consists of three parts:
-	 * 	<pre>triggertype_id_tablename</pre>
-	 * where triggertype is I/D/S/U (for insert/delete/select/update), ID is the unique ID assigned to this
-	 * instance of MusicSqlManager, and tablename is the name of the table the trigger applies to.
-	 * @return the corresponding MusicSqlManager
-	 */
-	public static MusicSqlManager getMusicSqlManager(String key) {
-		return msm_map.get(key);
-	}
-	/**
-	 * Get a new instance of MusicSqlManager for a specific JDBC URL.
-	 * @param url the URL to look for
-	 * @param c the JDBC Connection to the cache SQL database
-	 * @param info the JDBC Properties
-	 * @return the corresponding MusicSqlManager, or null if no proxy is needed for this URL
-	 * @throws MDBCServiceException 
-	 */
-	public static MusicSqlManager getMusicSqlManager(String url, Connection c, Properties info) {
-		String s = info.getProperty(Configuration.KEY_DISABLED, "false");
-		if (s.equalsIgnoreCase("true")) {
-			return null;
-		}
-
-		// To support transactions we need one MusicSqlManager per Connection
-		try {
-			return new MusicSqlManager(url, c, info);
-		} catch (MDBCServiceException e) {
-			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
-		}
-		return null;
-
-//		synchronized (msm_map) {
-//			MusicSqlManager mgr = msm_map.get(url);
-//			if (mgr == null) {
-//				mgr = new MusicSqlManager(url, c, info);
-//				msm_map.put(url, mgr);
-//			}
-//			return mgr;
-//		}
-	}
-
 	
 	private final DBInterface dbi;
 	private final MusicInterface mi;
@@ -111,7 +59,7 @@ public class MusicSqlManager {
 	 * @param info properties passed from the initial JDBC connect() call
 	 * @throws MDBCServiceException 
 	 */
-	private MusicSqlManager(String url, Connection conn, Properties info, MusicInterface mi) throws MDBCServiceException {
+	 public MusicSqlManager(String url, Connection conn, Properties info, MusicInterface mi) throws MDBCServiceException {
 		try {
 			info.putAll(Utils.getMdbcProperties());
 			String mixinDb  = info.getProperty(Configuration.KEY_DB_MIXIN_NAME, Configuration.DB_MIXIN_DEFAULT);
@@ -137,35 +85,11 @@ public class MusicSqlManager {
 	}
 
 	/**
-	 * Register this MusicSqlManager under a name, to be retrived later by a different thread.
-	 * @param name the name to use
-	 */
-	public void register(String name) {
-		msm_map.put(name, this);
-	}
-	/**
-	 * Unregister this MusicSqlManager under a name.
-	 * @param name the name to use
-	 */
-	public void unregister(String name) {
-		msm_map.remove(name);
-	}
-	/**
 	 * Close this MusicSqlManager.
 	 */
 	public void close() {
-		// remove from msm_map
-		for (String key : new TreeSet<String>(msm_map.keySet())) {
-			if (msm_map.get(key) == this) {
-				msm_map.remove(key);
-				break;
-			}
-		}
 		if (dbi != null) {
 			dbi.close();
-		}
-		if (mi != null) {
-			mi.close();
 		}
 	}
 
@@ -198,8 +122,11 @@ public class MusicSqlManager {
 				if (!table_set.contains(tableName) && !dbi.getReservedTblNames().contains(tableName)) {
 					logger.info(EELFLoggerDelegate.applicationLogger, "New table discovered: "+tableName);
 					try {
-						mi.initializeMusicForTable(tableName);
-						mi.createDirtyRowTable(tableName);
+						TableInfo ti = dbi.getTableInfo(tableName);
+						mi.initializeMusicForTable(ti,tableName);
+						//\TODO Verify if table info can be modify in the previous step, if not this step can be deleted
+						ti = dbi.getTableInfo(tableName);
+						mi.createDirtyRowTable(ti,tableName);
 						dbi.createSQLTriggers(tableName);
 						table_set.add(tableName);
 						synchronizeTableData(tableName);
@@ -239,7 +166,7 @@ public class MusicSqlManager {
 	 * @param tableName This is the table on which the SELECT is being performed
 	 */
 	public void readDirtyRowsAndUpdateDb(String tableName) {
-		mi.readDirtyRowsAndUpdateDb(tableName);
+		mi.readDirtyRowsAndUpdateDb(dbi,tableName);
 	}
 	/**
 	 * This method is called whenever there is an INSERT or UPDATE to a local SQL table, and should be called by the underlying databases
@@ -251,9 +178,10 @@ public class MusicSqlManager {
 	 * @param changedRow This is information about the row that has changed, an array of objects representing the data being inserted/updated
 	 */
 	public void updateDirtyRowAndEntityTableInMusic(String tableName, Object[] changedRow) {
-		//TODO: is this right? should we be saving updates at the client? we should leverage jdbc to handle this
+		//TODO: is this right? should we be saving updates at the client? we should leverage JDBC to handle this
 		if (autocommit) {
-			mi.updateDirtyRowAndEntityTableInMusic(tableName, changedRow);
+			TableInfo ti = dbi.getTableInfo(tableName);
+			mi.updateDirtyRowAndEntityTableInMusic(ti,tableName, changedRow);
 		} else {
 			saveUpdate("update", tableName, changedRow);
 		}
@@ -268,7 +196,8 @@ public class MusicSqlManager {
 	 */
 	public void deleteFromEntityTableInMusic(String tableName, Object[] oldRow) {
 		if (autocommit) {
-			mi.deleteFromEntityTableInMusic(tableName, oldRow);
+			TableInfo ti = dbi.getTableInfo(tableName);
+			mi.deleteFromEntityTableInMusic(ti,tableName, oldRow);
 		} else {
 			saveUpdate("delete", tableName, oldRow);
 		}
@@ -381,13 +310,15 @@ public class MusicSqlManager {
 		for (RowUpdate upd : mylist) {
 			if (upd.type.equals("update")) {
 				try {
-					mi.updateDirtyRowAndEntityTableInMusic(upd.table, upd.row);
+					TableInfo ti = dbi.getTableInfo(upd.table);
+					mi.updateDirtyRowAndEntityTableInMusic(ti,upd.table, upd.row);
 				}catch(Exception e) {
 					logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 				}
 			} else if (upd.type.equals("delete")) {
 				try {
-					mi.deleteFromEntityTableInMusic(upd.table, upd.row);
+					TableInfo ti = dbi.getTableInfo(upd.table);
+					mi.deleteFromEntityTableInMusic(ti,upd.table, upd.row);
 				}catch(Exception e) {
 					logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 				}
@@ -406,7 +337,8 @@ public class MusicSqlManager {
 	}
 
 	public String getMusicKeysFromRow(String table, Object[] dbRow) {
-		return mi.getMusicKeyFromRow(table, dbRow);
+		TableInfo ti = dbi.getTableInfo(table);
+		return mi.getMusicKeyFromRow(ti,table, dbRow);
 	}
 	
 	
