@@ -1,6 +1,10 @@
 package com.att.research.mdbc.mixins;
 
-public final class Operation {
+import java.io.Serializable;
+
+public final class Operation implements Serializable{
+
+	private static final long serialVersionUID = -1215301985078183104L;
 
 	final OperationType TYPE;
 	final String OLD_VAL;

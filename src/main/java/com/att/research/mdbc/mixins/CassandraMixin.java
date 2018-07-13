@@ -386,7 +386,7 @@ public class CassandraMixin implements MusicInterface {
 		try {
 			results = MusicCore.get(pQueryObject);
 		} catch (MusicServiceException e) {
-			// TODO Auto-generated catch block
+			
 			e.printStackTrace();
 		}
 		
@@ -498,7 +498,7 @@ public class CassandraMixin implements MusicInterface {
 			try {
 				rt = MusicCore.atomicPut(music_ns, tableName, primaryKey, pQueryObject, null);
 			} catch (MusicLockingException e) {
-				// TODO Auto-generated catch block
+				
 				e.printStackTrace();
 			}
 			if(rt.getResult().getResult().toLowerCase().equals("failure")) {
@@ -556,7 +556,7 @@ public class CassandraMixin implements MusicInterface {
 			try {
 				dirtyRows = MusicCore.get(pQueryObject);
 			} catch (MusicServiceException e) {
-				// TODO Auto-generated catch block
+				
 				e.printStackTrace();
 			}
 			/*
@@ -770,7 +770,7 @@ public class CassandraMixin implements MusicInterface {
 	 */
 	@SuppressWarnings("unused")
 	private String getUid(String tableName, String string, Object[] rowValues) {
-		// TODO Auto-generated method stub
+		// 
 		// Update local MUSIC node. Note: in Cassandra you can insert again on an existing key..it becomes an update
 		String cql = String.format("SELECT * FROM %s.%s;", music_ns, tableName);
 		PreparedStatement ps = getPreparedStatementFromCache(cql);
@@ -859,7 +859,7 @@ public class CassandraMixin implements MusicInterface {
 		try {
 			results = MusicCore.get(pQueryObject);
 		} catch (MusicServiceException e) {
-			// TODO Auto-generated catch block
+			
 			e.printStackTrace();
 		}
 		return results;
@@ -931,7 +931,7 @@ public class CassandraMixin implements MusicInterface {
 			try {
 				rt = MusicCore.atomicPut(music_ns, tableName, primaryKey, pQObject, null);
 			} catch (MusicLockingException e) {
-				// TODO Auto-generated catch block
+				
 				e.printStackTrace();
 			}
 			if(rt.getResult().getResult().toLowerCase().equals("failure")) {

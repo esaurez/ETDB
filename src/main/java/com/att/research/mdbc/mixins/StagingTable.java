@@ -1,5 +1,6 @@
 package com.att.research.mdbc.mixins;
 
+import java.io.Serializable;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -7,8 +8,12 @@ import java.util.Set;
 import org.apache.commons.lang3.tuple.Pair;
 import com.att.research.logging.EELFLoggerDelegate;
 
-public class StagingTable{
-	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(StagingTable.class);
+public class StagingTable implements Serializable{
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 7583182634761771943L;
+	private transient static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(StagingTable.class);
 	private HashMap<String,Deque<Operation>> operations;
 	
 	public StagingTable() {

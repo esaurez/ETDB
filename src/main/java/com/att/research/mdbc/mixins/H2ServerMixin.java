@@ -220,7 +220,7 @@ public class H2ServerMixin extends H2Mixin {
 	
 	@Override
 	public void synchronizeData(String tableName) {
-		// TODO Auto-generated method stub
+		// 
 		System.out.println("In Synchronize data");
 		
 		ResultSet rs = null;
@@ -255,7 +255,7 @@ public class H2ServerMixin extends H2Mixin {
 			try {
 				rs.close();
 			} catch (SQLException e) {
-				// TODO Auto-generated catch block
+				
 				e.printStackTrace();
 			}
 		}

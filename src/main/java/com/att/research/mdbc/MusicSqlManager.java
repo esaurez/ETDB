@@ -244,7 +244,7 @@ public class MusicSqlManager {
 				rs.getStatement().close();
 			}
 		} catch (JSQLParserException | SQLException e) {
-			// TODO Auto-generated catch block
+			
 			e.printStackTrace();
 		}
 		System.err.print("MusicKeys:");
@@ -272,7 +272,7 @@ public class MusicSqlManager {
 	 * @return
 	 */
 	public String generatePrimaryKey() {
-		// TODO Auto-generated method stub
+		// 
 		return mi.generatePrimaryKey();
 	}
 	

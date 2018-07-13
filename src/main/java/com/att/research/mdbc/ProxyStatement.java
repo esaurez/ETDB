@@ -1253,7 +1253,7 @@ public class ProxyStatement implements CallableStatement {
 				try {
 					mgr.synchronizeTables();
 				} catch (QueryException e) {
-					// TODO Auto-generated catch block
+					
 					e.printStackTrace();
 				}
 			}

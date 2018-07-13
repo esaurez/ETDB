@@ -192,7 +192,6 @@ public class Cassandra2Mixin extends CassandraMixin {
 		try {
 			results = MusicCore.get(pQueryObject);
 		} catch (MusicServiceException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		/*Session sess = getMusicSession();

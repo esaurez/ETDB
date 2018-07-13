@@ -69,6 +69,9 @@ public class MdbcConnection implements Connection {
 			}
 			//mgr.synchronizeTableData();
 		}
+		else {
+			logger.error(EELFLoggerDelegate.errorLogger, "MusicSqlManager was not correctly created", AppMessages.UNKNOWNERROR, ErrorTypes.UNKNOWN, ErrorSeverity.FATAL);
+		}
 	}
 
 	@Override

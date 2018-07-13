@@ -635,7 +635,7 @@ NEW.field refers to the new value
 			}
 			
 		} catch (JSQLParserException e) {
-			// TODO Auto-generated catch block
+			
 			e.printStackTrace();
 		}
 		//Something went wrong here
@@ -671,7 +671,7 @@ NEW.field refers to the new value
 				ResultSet rs = executeSQLRead("SELECT * FROM " + tbl + " WHERE " + where);
 				musicKeys = msm.getMusicKeysWhere(tbl, Utils.parseResults(getTableInfo(tbl), rs));
 			} catch (JSQLParserException e) {
-				// TODO Auto-generated catch block
+				
 				e.printStackTrace();
 			} catch	(SQLException e) {
 				//Not a valid sql query
@@ -781,7 +781,7 @@ NEW.field refers to the new value
 	}
 	@Override
 	public String getPrimaryKey(String sql, String tableName) {
-		// TODO Auto-generated method stub
+		// 
 		return null;
 	}
 	

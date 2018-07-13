@@ -317,7 +317,7 @@ public class H2Mixin implements DBInterface {
 	}
 	@Override
 	public void synchronizeData(String tableName) {
-		// TODO Auto-generated method stub
+		// 
 		
 	}
 	
@@ -333,7 +333,7 @@ public class H2Mixin implements DBInterface {
 	}
 	@Override
 	public String getPrimaryKey(String sql, String tableName) {
-		// TODO Auto-generated method stub
+		// 
 		return null;
 	}
 	

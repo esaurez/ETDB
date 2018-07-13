@@ -105,7 +105,7 @@ public class Driver implements java.sql.Driver {
 				try {
 					conn = new MdbcConnection(url, dr.connect(newurl, info), info,mi);
 				} catch (MDBCServiceException e) {
-					// TODO Auto-generated catch block
+					
 					logger.warn(EELFLoggerDelegate.applicationLogger,"Exception while creating MDBC connection: "+newurl);
 					conn = null;
 				}

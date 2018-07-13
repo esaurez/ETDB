@@ -40,7 +40,7 @@ public class MdbcStateManager implements StateManager{
      */
     private TxCommitProgress transactionInfo;
     
-    private Map<String,MdbcConnection> connections;
+    private Map<String,MdbcConnection> mdbcConnections;
     
     private String url;
     
@@ -55,7 +55,7 @@ public class MdbcStateManager implements StateManager{
         this.musicManager.createKeyspace();
         this.musicManager.initializeMdbcDataStructures();
         MusicMixin.loadProperties();
-        this.connections = new HashMap<String,MdbcConnection>();
+        this.mdbcConnections = new HashMap<String,MdbcConnection>();
     }
   
     /**
@@ -64,23 +64,26 @@ public class MdbcStateManager implements StateManager{
      * @return
      */
     public Connection GetConnection(String id) {
-    	if(connections.containsKey(id)) {
+    	if(mdbcConnections.containsKey(id)) {
     		//\TODO: Verify if this make sense
     		// Intent: reinitialize transaction progress, when it already completed the previous tx for the same connection
     		if(transactionInfo.isComplete(id)) {
     			transactionInfo.reinitializeTxProgress(id);
     		}
-    		return connections.get(id);
+    		return mdbcConnections.get(id);
     	}
+
     	Connection sqlConnection, newConnection;
+    	//Create connection to local SQL DB
 		try {
 			sqlConnection = DriverManager.getConnection(url, this.info);
 		} catch (SQLException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.QUERYERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
 			sqlConnection = null;
 		}
+		//Create MDBC connection
     	try {
-			newConnection = 	new MdbcConnection(url, sqlConnection, info, this.musicManager);
+			newConnection = new MdbcConnection(url, sqlConnection, info, this.musicManager);
 		} catch (MDBCServiceException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
 			newConnection = null;
