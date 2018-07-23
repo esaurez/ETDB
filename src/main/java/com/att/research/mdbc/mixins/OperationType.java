@@ -1,5 +1,5 @@
 package com.att.research.mdbc.mixins;
 
 public enum OperationType {
-	DELETE, UPDATE, INSERT
+	DELETE, UPDATE, INSERT, SELECT
 }

@@ -16,6 +16,7 @@ import org.onap.music.main.MusicCore;
 import org.onap.music.main.ReturnType;
 
 import com.att.research.logging.EELFLoggerDelegate;
+import com.att.research.mdbc.DatabasePartition;
 import com.att.research.mdbc.TableInfo;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
@@ -37,8 +38,8 @@ public class Cassandra2Mixin extends CassandraMixin {
 		super();
 	}
 
-	public Cassandra2Mixin(String url, Properties info) {
-		super(url, info);
+	public Cassandra2Mixin(String url, Properties info, DatabasePartition ranges) {
+		super(url, info,ranges);
 	}
 
 	/**
@@ -96,43 +97,7 @@ public class Cassandra2Mixin extends CassandraMixin {
 	public void dropDirtyRowTable(String tableName) {
 		// no-op
 	}
-	/**
-	 * Mark rows as "dirty" in the dirty rows table for <i>tableName</i>.  Rows are marked for all replicas but
-	 * this one (this replica already has the up to date data).
-	 * @param tableName the table we are marking dirty
-	 * @param keys an ordered list of the values being put into the table.  The values that correspond to the tables'
-	 * primary key are copied into the dirty row table.
-	 */
-	@Override
-	public void markDirtyRow(TableInfo ti, String tableName, Object[] keys) {
-		String cql = String.format("INSERT INTO %s.%s (tablename, replica, keyset) VALUES (?, ?, ?);", music_ns, DIRTY_TABLE);
-		/*Session sess = getMusicSession();
-		PreparedStatement ps = getPreparedStatementFromCache(cql);*/
-		@SuppressWarnings("unused")
-		Object[] values = new Object[] { tableName, "", buildJSON(ti, tableName, keys) };
-		PreparedQueryObject pQueryObject = null;
-		for (String repl : allReplicaIds) {
-			/*if (!repl.equals(myId)) {
-				values[1] = repl;
-				logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + values[0] + " " + values[1] + " " + values[2]);
-				
-				BoundStatement bound = ps.bind(values);
-				bound.setReadTimeoutMillis(60000);
-				synchronized (sess) {
-					sess.execute(bound);
-				}
-			}*/
-			pQueryObject = new PreparedQueryObject();
-			pQueryObject.appendQueryString(cql);
-			pQueryObject.addValue(tableName);
-			pQueryObject.addValue(repl);
-			pQueryObject.addValue(buildJSON(ti, tableName, keys));
-			ReturnType rt = MusicCore.eventualPut(pQueryObject);
-			if(rt.getResult().getResult().toLowerCase().equals("failure")) {
-				System.out.println("Failure while critical put..."+rt.getMessage());
-			}
-		}
-	}
+
 	private String buildJSON(TableInfo ti, String tableName, Object[] keys) {
 		// Build JSON string representing this keyset
 		JSONObject jo = new JSONObject();
@@ -150,18 +115,18 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param keys the primary key values to use in the DELETE.  Note: this is *only* the primary keys, not a full table row.
 	 */
 	@Override
-	public void cleanDirtyRow(TableInfo ti, String tableName, Object[] keys) {
+	public void cleanDirtyRow(TableInfo ti, String tableName, JSONObject keys) {
 		String cql = String.format("DELETE FROM %s.%s WHERE tablename = ? AND replica = ? AND keyset = ?;", music_ns, DIRTY_TABLE);
 		//Session sess = getMusicSession();
 		//PreparedStatement ps = getPreparedStatementFromCache(cql);
-		Object[] values = new Object[] { tableName, myId, buildJSON(ti,tableName, keys) };
+		Object[] values = new Object[] { tableName, myId, keys };
 		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + values[0] + " " + values[1] + " " + values[2]);
 		
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		pQueryObject.appendQueryString(cql);
 		pQueryObject.addValue(tableName);
 		pQueryObject.addValue(myId);
-		pQueryObject.addValue(buildJSON(ti,tableName, keys));
+		pQueryObject.addValue(keys);
 		ReturnType rt = MusicCore.eventualPut(pQueryObject);
 		if(rt.getResult().getResult().toLowerCase().equals("failure")) {
 			logger.error(EELFLoggerDelegate.errorLogger, "Failure while eventualPut...: "+rt.getMessage());
@@ -256,8 +221,7 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param tableName This is the table that has changed.
 	 * @param oldRow This is a copy of the old row being deleted
 	 */
-	@Override
-	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, Object[] oldRow) {
+	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, JSONObject oldRow) {
 		super.deleteFromEntityTableInMusic(ti, tableName, oldRow);
 	}
 	/**
@@ -279,7 +243,45 @@ public class Cassandra2Mixin extends CassandraMixin {
 	 * @param changedRow This is information about the row that has changed
 	 */
 	@Override
-	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, Object[] changedRow) {
+	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, JSONObject changedRow) {
 		super.updateDirtyRowAndEntityTableInMusic(ti, tableName, changedRow);
+	}
+	
+	/**
+	 * Mark rows as "dirty" in the dirty rows table for <i>tableName</i>.  Rows are marked for all replicas but
+	 * this one (this replica already has the up to date data).
+	 * @param tableName the table we are marking dirty
+	 * @param keys an ordered list of the values being put into the table.  The values that correspond to the tables'
+	 * primary key are copied into the dirty row table.
+	 */
+	@Deprecated
+	public void markDirtyRow(TableInfo ti, String tableName, Object[] keys) {
+		String cql = String.format("INSERT INTO %s.%s (tablename, replica, keyset) VALUES (?, ?, ?);", music_ns, DIRTY_TABLE);
+		/*Session sess = getMusicSession();
+		PreparedStatement ps = getPreparedStatementFromCache(cql);*/
+		@SuppressWarnings("unused")
+		Object[] values = new Object[] { tableName, "", buildJSON(ti, tableName, keys) };
+		PreparedQueryObject pQueryObject = null;
+		for (String repl : allReplicaIds) {
+			/*if (!repl.equals(myId)) {
+				values[1] = repl;
+				logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + values[0] + " " + values[1] + " " + values[2]);
+				
+				BoundStatement bound = ps.bind(values);
+				bound.setReadTimeoutMillis(60000);
+				synchronized (sess) {
+					sess.execute(bound);
+				}
+			}*/
+			pQueryObject = new PreparedQueryObject();
+			pQueryObject.appendQueryString(cql);
+			pQueryObject.addValue(tableName);
+			pQueryObject.addValue(repl);
+			pQueryObject.addValue(buildJSON(ti, tableName, keys));
+			ReturnType rt = MusicCore.eventualPut(pQueryObject);
+			if(rt.getResult().getResult().toLowerCase().equals("failure")) {
+				System.out.println("Failure while critical put..."+rt.getMessage());
+			}
+		}
 	}
 }

@@ -312,7 +312,7 @@ public class H2Mixin implements DBInterface {
 	 * @param sql the SQL statement that was executed
 	 */
 	@Override
-	public void postStatementHook(final String sql) {
+	public void postStatementHook(final String sql,Map<String,StagingTable> transactionDigest) {
 		// do nothing
 	}
 	@Override

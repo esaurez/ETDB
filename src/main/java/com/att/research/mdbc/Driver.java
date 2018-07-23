@@ -13,6 +13,7 @@ import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.mixins.MixinFactory;
 import com.att.research.mdbc.mixins.MusicInterface;
+import com.att.research.mdbc.mixins.TxCommitProgress;
 import com.att.research.mdbc.mixins.Utils;
 
 /**
@@ -30,7 +31,7 @@ public class Driver implements java.sql.Driver {
 	public static final String PROXY_PREFIX = "jdbc:mdbc:";
 	public static final int MAJOR_VERSION = 0;
 	public static final int MINOR_VERSION = 1;
-
+	public static final TxCommitProgress progressKeeper = new TxCommitProgress();
 	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(Driver.class);
 
 	static {
@@ -99,11 +100,11 @@ public class Driver implements java.sql.Driver {
 
 			//\TODO  Don't create a new music interface for each driver, it needs to be global for all the connections
 	        String mixin  = info.getProperty(Configuration.KEY_MUSIC_MIXIN_NAME, Configuration.MUSIC_MIXIN_DEFAULT);
-	        MusicInterface mi = MixinFactory.createMusicInterface(mixin, url, info);
+	        MusicInterface mi = MixinFactory.createMusicInterface(mixin, url, info, new DatabasePartition());
 			if (dr != null) {
 				Connection conn;
 				try {
-					conn = new MdbcConnection(url, dr.connect(newurl, info), info,mi);
+					conn = new MdbcConnection("0",url, dr.connect(newurl, info), info,mi,progressKeeper);
 				} catch (MDBCServiceException e) {
 					
 					logger.warn(EELFLoggerDelegate.applicationLogger,"Exception while creating MDBC connection: "+newurl);

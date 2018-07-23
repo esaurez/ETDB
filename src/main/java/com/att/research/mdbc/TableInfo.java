@@ -60,4 +60,16 @@ public class TableInfo {
 		}
 		return false;
 	}
+	
+	public List<String> getKeyColumns(){
+		List<String> keys = new ArrayList<String>();
+		int idx = 0;
+		for (Boolean b: iskey) {
+			if (b) {
+				keys.add(this.columns.get(idx));
+			}
+			idx++;
+		}
+		return keys;
+	}
 }

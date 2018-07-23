@@ -10,9 +10,12 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import org.json.JSONObject;
 import org.onap.music.exceptions.MusicLockingException;
 import org.onap.music.main.MusicCore;
 
+import com.att.research.exceptions.MDBCServiceException;
+import com.att.research.mdbc.DatabasePartition;
 import com.att.research.mdbc.TableInfo;
 
 /**
@@ -36,13 +39,13 @@ public class MusicMixin implements MusicInterface {
 	}
 
 	@Override
-	public String generatePrimaryKey() {
+	public String generateUniqueKey() {
 		// 
 		return null;
 	}
 
 	@Override
-	public String getMusicKeyFromRow(TableInfo ti, String table, Object[] dbRow) {
+	public String getMusicKeyFromRow(TableInfo ti, String table, JSONObject dbRow) {
 		// 
 		return null;
 	}
@@ -84,13 +87,13 @@ public class MusicMixin implements MusicInterface {
 	}
 
 	@Override
-	public void markDirtyRow(TableInfo ti, String tableName, Object[] keys) {
+	public void markDirtyRow(TableInfo ti, String tableName,  JSONObject keys) {
 		// 
 		
 	}
 
 	@Override
-	public void cleanDirtyRow(TableInfo ti, String tableName, Object[] keys) {
+	public void cleanDirtyRow(TableInfo ti, String tableName, JSONObject keys) {
 		// 
 		
 	}
@@ -102,7 +105,7 @@ public class MusicMixin implements MusicInterface {
 	}
 
 	@Override
-	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, Object[] oldRow) {
+	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, JSONObject oldRow) {
 		// 
 		
 	}
@@ -114,12 +117,12 @@ public class MusicMixin implements MusicInterface {
 	}
 
 	@Override
-	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, Object[] changedRow) {
+	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, JSONObject changedRow) {
 		updateDirtyRowAndEntityTableInMusic(tableName, changedRow, false);
 		
 	}
 	
-	public void updateDirtyRowAndEntityTableInMusic(String tableName, Object[] changedRow, boolean isCritical) {
+	public void updateDirtyRowAndEntityTableInMusic(String tableName, JSONObject changedRow, boolean isCritical) {
 		// 
 		
 	}
@@ -164,7 +167,7 @@ public static List<String> criticalTables = new ArrayList<>();
 	}
 
 	@Override
-	public String getPrimaryKey(TableInfo ti, String tableName, Object[] changedRow) {
+	public String getMusicKeyFromRowWithoutPrimaryIndexes(TableInfo ti, String tableName, JSONObject changedRow) {
 		// 
 		return null;
 	}
@@ -178,6 +181,18 @@ public static List<String> criticalTables = new ArrayList<>();
 	@Override
 	public void createMdbcDataStructures() {
 		// 
+		
+	}
+
+	@Override
+	public Object[] getObjects(TableInfo ti, String tableName, JSONObject row) {
+		return null;
+	}
+
+	@Override
+	public void commitLog(DBInterface dbi, HashMap<String, StagingTable> transactionDigest, DatabasePartition.Range partition, String commitId)
+			throws MDBCServiceException {
+		// TODO Auto-generated method stub
 		
 	}
 }

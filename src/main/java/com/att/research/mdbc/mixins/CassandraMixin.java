@@ -15,16 +15,23 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
+import org.json.JSONObject;
+import org.onap.music.datastore.MusicDataStore;
 import org.onap.music.datastore.PreparedQueryObject;
 import org.onap.music.exceptions.MusicLockingException;
 import org.onap.music.exceptions.MusicServiceException;
 import org.onap.music.main.MusicCore;
+import org.onap.music.main.ResultType;
 import org.onap.music.main.ReturnType;
 
+import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.logging.EELFLoggerDelegate;
+import com.att.research.mdbc.DatabasePartition;
+import com.att.research.mdbc.MDBCUtils;
 import com.att.research.mdbc.TableInfo;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.ColumnDefinitions;
+import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
@@ -66,8 +73,15 @@ public class CassandraMixin implements MusicInterface {
 	public static final int    DEFAULT_MUSIC_RFACTOR  = 2;
 	/** The default primary string column, if none is provided. */
 	public static final String MDBC_PRIMARYKEY_NAME = "mdbc_cuid";
+	/** Type of the primary key, if none is defined by the user */
 	public static final String MDBC_PRIMARYKEY_TYPE = "uuid";
+	/** Namespace for the tables in MUSIC (Cassandra) */
 	public static final String MUSIC_NAMESPACE = "namespace";
+	
+	public static final String REDO_RECORD_TABLE_NAME = "RedoRecords";
+	public static final String TRANSACTION_INFORMATION_TABLE_NAME = "TransactionInformation";
+	public static final String RANGE_INFORMATION_TABLE_NAME = "RangeInformation";
+	public static final String LATEST_REDO_ID_TABLE_NAME = "LatestRedoId";
 
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(CassandraMixin.class);
 	
@@ -94,7 +108,7 @@ public class CassandraMixin implements MusicInterface {
 		//typemap.put(Types.DATE,   	 "TIMESTAMP");
 	}
 
-	//protected final Logger logger;
+	protected DatabasePartition ranges;
 	protected TxCommitProgress txProgress;
 	protected final String music_ns;
 	protected final String myId;
@@ -116,7 +130,8 @@ public class CassandraMixin implements MusicInterface {
 		this.allReplicaIds  = null;
 	}
 
-	public CassandraMixin(String url, Properties info) {
+	public CassandraMixin(String url, Properties info, DatabasePartition ranges) {
+		this.ranges = ranges;
 		// Default values -- should be overridden in the Properties
 		// Default to using the host_ids of the various peers as the replica IDs (this is probably preferred)
 		this.musicAddress   = info.getProperty(KEY_MUSIC_ADDRESS, DEFAULT_MUSIC_ADDRESS);
@@ -280,7 +295,8 @@ public class CassandraMixin implements MusicInterface {
 	 * primary key are copied into the dirty row table.
 	 */
 	@Override
-	public void markDirtyRow(TableInfo ti, String tableName, Object[] keys) {
+	public void markDirtyRow(TableInfo ti, String tableName, JSONObject keys) {
+		Object[] keyObj = getObjects(ti,tableName, keys);
 		StringBuilder cols = new StringBuilder("REPLICA__");
 		PreparedQueryObject pQueryObject = null;
 		StringBuilder vals = new StringBuilder("?");
@@ -290,7 +306,7 @@ public class CassandraMixin implements MusicInterface {
 			if (ti.iskey.get(i)) {
 				cols.append(", ").append(ti.columns.get(i));
 				vals.append(", ").append("?");
-				vallist.add(keys[i]);
+				vallist.add(keyObj[i]);
 			}
 		}
 		if(cols.length()==0) {
@@ -300,13 +316,19 @@ public class CassandraMixin implements MusicInterface {
 		String cql = String.format("INSERT INTO %s.DIRTY_%s (%s) VALUES (%s);", music_ns, tableName, cols.toString(), vals.toString());
 		/*Session sess = getMusicSession();
 		PreparedStatement ps = getPreparedStatementFromCache(cql);*/
-		String primaryKey = getPrimaryKey(ti,tableName, keys);
+		String primaryKey;
+		if(ti.hasKey()) {
+			primaryKey = getMusicKeyFromRow(ti,tableName, keys);
+		}
+		else {
+			primaryKey = getMusicKeyFromRowWithoutPrimaryIndexes(ti,tableName, keys);
+		}
 		System.out.println("markDirtyRow: PK value: "+primaryKey);
 		
 		Object pkObj = null;
 		for (int i = 0; i < ti.columns.size(); i++) {
 			if (ti.iskey.get(i)) {
-				pkObj = keys[i];
+				pkObj = keyObj[i];
 			}
 		}
 		for (String repl : allReplicaIds) {
@@ -334,7 +356,8 @@ public class CassandraMixin implements MusicInterface {
 	 * @param keys the primary key values to use in the DELETE.  Note: this is *only* the primary keys, not a full table row.
 	 */
 	@Override
-	public void cleanDirtyRow(TableInfo ti, String tableName, Object[] keys) {
+	public void cleanDirtyRow(TableInfo ti, String tableName, JSONObject keys) {
+		Object[] keysObjects = getObjects(ti,tableName,keys);
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		StringBuilder cols = new StringBuilder("REPLICA__=?");
 		List<Object> vallist = new ArrayList<Object>();
@@ -343,8 +366,8 @@ public class CassandraMixin implements MusicInterface {
 		for (int i = 0; i < ti.columns.size(); i++) {
 			if (ti.iskey.get(i)) {
 				cols.append(" AND ").append(ti.columns.get(i)).append("=?");
-				vallist.add(keys[n++]);
-				pQueryObject.addValue(keys[n++]);
+				vallist.add(keysObjects[n++]);
+				pQueryObject.addValue(keysObjects[n++]);
 			}
 		}
 		String cql = String.format("DELETE FROM %s.DIRTY_%s WHERE %s;", music_ns, tableName, cols.toString());
@@ -454,12 +477,13 @@ public class CassandraMixin implements MusicInterface {
 	 * @param oldRow This is a copy of the old row being deleted
 	 */
 	@Override
-	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, Object[] oldRow) {
+	public void deleteFromEntityTableInMusic(TableInfo ti, String tableName, JSONObject oldRow) {
+		Object[] objects = getObjects(ti,tableName,oldRow);
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		if (ti.hasKey()) {
-			assert(ti.columns.size() == oldRow.length);
+			assert(ti.columns.size() == objects.length);
 		} else {
-			assert(ti.columns.size()+1 == oldRow.length);
+			assert(ti.columns.size()+1 == objects.length);
 		}
 
 		StringBuilder where = new StringBuilder();
@@ -470,15 +494,16 @@ public class CassandraMixin implements MusicInterface {
 				where.append(pfx)
 				     .append(ti.columns.get(i))
 				     .append("=?");
-				vallist.add(oldRow[i]);
-				pQueryObject.addValue(oldRow[i]);
+				vallist.add(objects[i]);
+				pQueryObject.addValue(objects[i]);
 				pfx = " AND ";
 			}
 		}
 		if (!ti.hasKey()) {
 			where.append(MDBC_PRIMARYKEY_NAME + "=?");
-			vallist.add(UUID.fromString((String) oldRow[0]));
-			pQueryObject.addValue(UUID.fromString((String) oldRow[0]));
+			//\FIXME this is wrong, old row is not going to contain the UUID, this needs to be fixed 
+			vallist.add(UUID.fromString((String) objects[0]));
+			pQueryObject.addValue(UUID.fromString((String) objects[0]));
 		}
 
 		String cql = String.format("DELETE FROM %s.%s WHERE %s;", music_ns, tableName, where.toString());
@@ -492,7 +517,7 @@ public class CassandraMixin implements MusicInterface {
 		synchronized (sess) {
 			sess.execute(bound);
 		}*/
-		String primaryKey = getPrimaryKey(ti,tableName, oldRow);
+		String primaryKey = getMusicKeyFromRow(ti,tableName, oldRow);
 		if(MusicMixin.criticalTables.contains(tableName)) {
 			ReturnType rt = null;
 			try {
@@ -537,6 +562,7 @@ public class CassandraMixin implements MusicInterface {
 		String pre_cql = String.format("SELECT * FROM %s.%s WHERE ", music_ns, tableName);
 		List<Object> vallist = new ArrayList<Object>();
 		StringBuilder sb = new StringBuilder();
+		//\TODO Perform a batch operation instead of each row at a time
 		for (Map<String,Object> map : objlist) {
 			pQueryObject = new PreparedQueryObject();
 			sb.setLength(0);
@@ -554,6 +580,7 @@ public class CassandraMixin implements MusicInterface {
 			pQueryObject.appendQueryString(cql);
 			ResultSet dirtyRows = null;
 			try {
+				//\TODO Why is this an eventual put?, this should be an atomic
 				dirtyRows = MusicCore.get(pQueryObject);
 			} catch (MusicServiceException e) {
 				
@@ -591,7 +618,7 @@ public class CassandraMixin implements MusicInterface {
 				vallist.add(val);
 			}
 		}
-		cleanDirtyRow(ti, tableName, vallist.toArray());
+		cleanDirtyRow(ti, tableName, new JSONObject(vallist));
 	}
 	/**
 	 * This functions copies the contents of a row in Music into the corresponding row in the SQL table
@@ -636,7 +663,7 @@ public class CassandraMixin implements MusicInterface {
 //		}
 
 		ti = dbi.getTableInfo(tableName);
-		cleanDirtyRow(ti, tableName, vallist.toArray());
+		cleanDirtyRow(ti, tableName, new JSONObject(vallist));
 
 //		String selectQuery = "select "+ primaryKeyName+" FROM "+tableName+" WHERE "+primaryKeyName+"="+primaryKeyValue+";";
 //		java.sql.ResultSet rs = executeSQLRead(selectQuery);
@@ -659,8 +686,16 @@ public class CassandraMixin implements MusicInterface {
 	}
 	private Object getValue(Row musicRow, String colname) {
 		ColumnDefinitions cdef = musicRow.getColumnDefinitions();
-		String type = cdef.getType(colname).getName().toString().toUpperCase();
-		switch (type) {
+		DataType colType;
+		try {
+			colType= cdef.getType(colname);
+		}
+		catch(IllegalArgumentException e) {
+			logger.warn("Colname is not part of table metadata: "+e);
+			throw e;
+		}
+		String typeStr = colType.getName().toString().toUpperCase();
+		switch (typeStr) {
 		case "BIGINT":
 			return musicRow.getLong(colname);
 		case "BOOLEAN":
@@ -681,7 +716,7 @@ public class CassandraMixin implements MusicInterface {
 		case "UUID":
 			return musicRow.getUUID(colname);
 		default:
-			logger.error(EELFLoggerDelegate.errorLogger, "UNEXPECTED COLUMN TYPE: columname="+colname+", columntype="+type);
+			logger.error(EELFLoggerDelegate.errorLogger, "UNEXPECTED COLUMN TYPE: columname="+colname+", columntype="+typeStr);
 			// fall thru
 		case "VARCHAR":
 			return musicRow.getString(colname);
@@ -697,21 +732,22 @@ public class CassandraMixin implements MusicInterface {
 	 * @param changedRow This is information about the row that has changed
 	 */
 	@Override
-	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, Object[] changedRow) {
+	public void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, JSONObject changedRow) {
 		// Build the CQL command
+		Object[] objects = getObjects(ti,tableName,changedRow);
 		StringBuilder fields = new StringBuilder();
 		StringBuilder values = new StringBuilder();
 		String rowid = tableName;
-		Object[] newrow = new Object[changedRow.length];
+		Object[] newrow = new Object[objects.length];
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		String pfx = "";
 		int keyoffset=0;
-		for (int i = 0; i < changedRow.length; i++) {
+		for (int i = 0; i < objects.length; i++) {
 			if (!ti.hasKey() && i==0) {
 				//We need to tack on cassandra's uid in place of a primary key
 				fields.append(MDBC_PRIMARYKEY_NAME);
 				values.append("?");
-				newrow[i] = UUID.fromString((String) changedRow[i]);
+				newrow[i] = UUID.fromString((String) objects[i]);
 				pQueryObject.addValue(newrow[i]);
 				keyoffset=-1;
 				pfx = ", ";
@@ -720,16 +756,16 @@ public class CassandraMixin implements MusicInterface {
 			fields.append(pfx).append(ti.columns.get(i+keyoffset));
 			values.append(pfx).append("?");
 			pfx = ", ";
-			if (changedRow[i] instanceof byte[]) {
+			if (objects[i] instanceof byte[]) {
 				// Cassandra doesn't seem to have a Codec to translate a byte[] to a ByteBuffer
-				newrow[i] = ByteBuffer.wrap((byte[]) changedRow[i]);
+				newrow[i] = ByteBuffer.wrap((byte[]) objects[i]);
 				pQueryObject.addValue(newrow[i]);
-			} else if (changedRow[i] instanceof Reader) {
+			} else if (objects[i] instanceof Reader) {
 				// Cassandra doesn't seem to have a Codec to translate a Reader to a ByteBuffer either...
-				newrow[i] = ByteBuffer.wrap(readBytesFromReader((Reader) changedRow[i]));
+				newrow[i] = ByteBuffer.wrap(readBytesFromReader((Reader) objects[i]));
 				pQueryObject.addValue(newrow[i]);
 			} else {
-				newrow[i] = changedRow[i];
+				newrow[i] = objects[i];
 				pQueryObject.addValue(newrow[i]);
 			}
 			if (i+keyoffset>=0 && ti.iskey.get(i+keyoffset)) {
@@ -746,7 +782,7 @@ public class CassandraMixin implements MusicInterface {
 			String cql = String.format("INSERT INTO %s.%s (%s) VALUES (%s);", music_ns, tableName, fields.toString(), values.toString());
 			
 			pQueryObject.appendQueryString(cql);
-			String primaryKey = getPrimaryKey(ti,tableName, changedRow);
+			String primaryKey = getMusicKeyFromRow(ti,tableName, changedRow);
 			updateMusicDB(tableName, primaryKey, pQueryObject);
 			
 			/*PreparedStatement ps = getPreparedStatementFromCache(cql);
@@ -761,33 +797,7 @@ public class CassandraMixin implements MusicInterface {
 		}
 	}
 	
-	/**
-	 * Looks up and gets the mdbc created primary key from Cassandra defined by the rowValues
-	 * @param tableName
-	 * @param string
-	 * @param newrow
-	 * @return
-	 */
-	@SuppressWarnings("unused")
-	private String getUid(String tableName, String string, Object[] rowValues) {
-		// 
-		// Update local MUSIC node. Note: in Cassandra you can insert again on an existing key..it becomes an update
-		String cql = String.format("SELECT * FROM %s.%s;", music_ns, tableName);
-		PreparedStatement ps = getPreparedStatementFromCache(cql);
-		BoundStatement bound = ps.bind();
-		bound.setReadTimeoutMillis(60000);
-		Session sess = getMusicSession();
-		ResultSet rs;
-		synchronized (sess) {
-			rs = sess.execute(bound);
-		}
 
-		//
-		//should never reach here
-		logger.error(EELFLoggerDelegate.errorLogger, "Could not find the row in the primary key");
-		
-		return null;
-	}
 
 	private byte[] readBytesFromReader(Reader rdr) {
 		StringBuilder sb = new StringBuilder();
@@ -877,17 +887,30 @@ public class CassandraMixin implements MusicInterface {
 	}
 
 	/**
-	 * Return the function for cassandra's primary key generatino
+	 * Return the function for cassandra's primary key generation
 	 */
-	public String generatePrimaryKey() {
+	public String generateUniqueKey() {
 		return UUID.randomUUID().toString();
 	}
 	
-	public String getMusicKeyFromRow(TableInfo ti, String table, Object[] dbRow) {
-		ResultSet musicResults = executeMusicRead("SELECT * FROM " +music_ns + "." + table);
+	@Override
+	public String getMusicKeyFromRowWithoutPrimaryIndexes(TableInfo ti, String table, JSONObject dbRow) {
+		//\TODO this operation is super expensive to perform, both latency and BW 
+		// it is better to add additional where clauses, and have the primary key
+		// to be composed of known columns of the table
+		// Adding this primary indexes would be an additional burden to the developers, which spanner
+		// also does, but otherwise performance is really bad
+		// At least it should have a set of columns that are guaranteed to be unique
+		StringBuilder cqlOperation = new StringBuilder();
+		cqlOperation.append("SELECT * FROM ")
+					.append(music_ns)
+					.append(".")
+					.append(table);
+		ResultSet musicResults = executeMusicRead(cqlOperation.toString());
+		Object[] dbRowObjects = getObjects(ti,table,dbRow);
 		while (!musicResults.isExhausted()) {
 			Row musicRow = musicResults.one();
-			if (rowIs(ti, musicRow, dbRow)) {
+			if (rowIs(ti, musicRow, dbRowObjects)) {
 				return ((UUID)getValue(musicRow, MDBC_PRIMARYKEY_NAME)).toString();
 			}
 		}
@@ -914,15 +937,22 @@ public class CassandraMixin implements MusicInterface {
 		}
 		return sameRow;
 	}
-	
-	public String getPrimaryKey(TableInfo ti, String tableName, Object[] changedRow) {
-		for (int i = 0; i < changedRow.length; i++) {
-			if (ti.iskey.get(i)) {
-				return changedRow[i].toString();
-			}
+
+	@Override
+	public String getMusicKeyFromRow(TableInfo ti, String tableName, JSONObject row) {
+		List<String> keyCols = ti.getKeyColumns();
+		if(keyCols.isEmpty()){
+			throw new IllegalArgumentException("Table doesn't have defined primary indexes ");
 		}
-		logger.info(EELFLoggerDelegate.applicationLogger, "Couldn't retrieve primary key. TableName:"+ tableName);
-		return null;
+		StringBuilder key = new StringBuilder();
+		String pfx = "";
+		for(String keyCol: keyCols) {
+			key.append(pfx);
+			key.append(row.getString(keyCol));
+			pfx = ",";
+		}
+		String keyStr = key.toString();
+		return keyStr;
 	}
 
 	public void updateMusicDB(String tableName, String primaryKey, PreparedQueryObject pQObject) {
@@ -959,7 +989,7 @@ public class CassandraMixin implements MusicInterface {
 				* RangeTxId: id into the TransactionInformation table, uuid
 	*/
 	private void CreateRangeInformationTable() {
-		String tableName = "RangeInformation";
+		String tableName = RANGE_INFORMATION_TABLE_NAME;
 		String priKey = "lowerkey";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("lowerkey text, ");
@@ -985,12 +1015,15 @@ public class CassandraMixin implements MusicInterface {
 	 * 		 split the row into multiple rows, with only the last row updatable and the other ones delete-read only
 	 */
 	private void CreateTransactionInformationTable() {
-		String tableName = "TransactionInformation";
+		String tableName = TRANSACTION_INFORMATION_TABLE_NAME;
 		String priKey = "id";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("id uuid, ");
-		fields.append("lowerkey text, ");
-		fields.append("upperkey text, ");
+		//TODO see how to improve this part of the table, it should contain information about the ranges being contained 
+		//HINT: it could contain just an index to another table. This shouldn't be used frequently?
+		fields.append("lowerkeys set<text>, ");//composed of table.lowerkey
+		fields.append("upperkey set<text>, ");//composed of table.upperkey
+		//---End of TODO --
 		fields.append("redologtable text, ");
 		fields.append("transactions list<tuple<text,text>> ");//\TODO check if text is the right type, see CreateRedoLogTable function
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
@@ -1001,14 +1034,10 @@ public class CassandraMixin implements MusicInterface {
 	 * This function creates the RedoLog table. It contain information related to 
 	 * 	* LeaseId: id associated with the lease, text
 	 * 	* LeaseCounter: transaction number under this lease, bigint \TODO this may need to be a varint later 
-	 *  * TransactionLog: set of tuples (order of actions within transaction doesn't matter). Each tuple is composed of:
-	 *  	* key: text
-	 *  	* oldval: text
-	 *  	* newval: text 
-	 *  \NOTE To keep the TransactionLog as a set (instead of a list), we need to make sure that there are no repeated keys in the log, before submitting 
+	 *  * TransactionDigest: text that contains all the changes in the transaction
 	 */
 	private void CreateRedoRecordsTable(int redoTableNumber) {
-		String tableName = "RedoRecords";
+		String tableName = REDO_RECORD_TABLE_NAME;
 		if(redoTableNumber >= 0) {
 			StringBuilder table = new StringBuilder();
 			table.append(tableName);
@@ -1020,19 +1049,18 @@ public class CassandraMixin implements MusicInterface {
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("leaseid text, ");
 		fields.append("leasecounter bigint, ");
-		fields.append("transactionlog set<tuple<text,text,text>> ");//notice lack of ','
+		fields.append("transactiondigest text ");//notice lack of ','
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
 	}
 
 	private void CreateLatestRedoIdTable() {
-		String tableName = "LatestRedoId";
+		String tableName = LATEST_REDO_ID_TABLE_NAME;
 		String priKey = "TxInfoId";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("txinfoid uiid, ");
 		fields.append("leaseid text, ");
 		fields.append("leasecounter bigint, ");
-		fields.append("transactionlog set<tuple<text,text,text>> ");//notice lack of ','
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
 	}
@@ -1046,4 +1074,95 @@ public class CassandraMixin implements MusicInterface {
 		CreateRangeInformationTable();
 		CreateLatestRedoIdTable();
 	}
+
+	@Override
+	public void commitLog(DBInterface dbi, HashMap<String, StagingTable> transactionDigest, DatabasePartition.Range partition, String commitId,TxCommitProgress progressKeeper) throws MDBCServiceException{
+		String TITIndex = partition.getTransactionInformationIndex();
+		if(TITIndex.isEmpty()) {
+			//\TODO Fetch TITIndex from the Range Information Table 
+			throw new MDBCServiceException("TIT Index retrieval not yet implemented");
+		}
+		//0. See if reference to lock was already created 
+		String lockId = partition.getLockId();
+		if(lockId == null || lockId.isEmpty()) {
+			String key = MUSIC_NAMESPACE+"."+ TRANSACTION_INFORMATION_TABLE_NAME +"."+TITIndex;
+			lockId = MusicCore.createLockReference(key);
+			ReturnType lockReturn = MusicCore.acquireLock(key,lockId);
+			if(lockReturn.getResult().compareTo(ResultType.SUCCESS) != 0 ) {
+				throw new MDBCServiceException("Could not lock the corresponding lock");
+			}
+			//TODO: Java newbie here, verify that this lockId is actually assigned to the global DatabasePartition in the StateManager instance
+			partition.setLockId(lockId);
+		}
+		//1. Push new row to RRT and obtain its index
+		PreparedQueryObject query = new PreparedQueryObject();
+	    StringBuilder cqlQuery = new StringBuilder("INSERT INTO ")
+	    	      .append(REDO_RECORD_TABLE_NAME)
+	    	      .append("(leaseid,leasecounter,transactionlog) ")
+	    	      .append("VALUES (")
+	    	      .append( lockId ).append(",")
+	    	      .append( partition.partitionId+"-"+commitId).append(",")
+	    	      .append( MDBCUtils.toString(transactionDigest) )
+	    	      .append("');");
+	    query.appendQueryString(cqlQuery.toString());
+		//\TODO check if I am not shooting on my own foot  
+		MusicCore.nonKeyRelatedPut(query,"critical");
+		//2. Save RRT index to RQ
+		if(progressKeeper!= null) {
+		
+		}
+		//4. Append RRT index into the corresponding TIT row arr
+		yada
+	}
+	
+	/**
+	 * Looks up and gets the mdbc created primary key from Cassandra defined by the rowValues
+	 * @param tableName
+	 * @param string
+	 * @param newrow
+	 * @return
+	 */
+	@SuppressWarnings("unused")
+	private String getUid(String tableName, String string, Object[] rowValues) {
+		// 
+		// Update local MUSIC node. Note: in Cassandra you can insert again on an existing key..it becomes an update
+		String cql = String.format("SELECT * FROM %s.%s;", music_ns, tableName);
+		PreparedStatement ps = getPreparedStatementFromCache(cql);
+		BoundStatement bound = ps.bind();
+		bound.setReadTimeoutMillis(60000);
+		Session sess = getMusicSession();
+		ResultSet rs;
+		synchronized (sess) {
+			rs = sess.execute(bound);
+		}
+
+		//
+		//should never reach here
+		logger.error(EELFLoggerDelegate.errorLogger, "Could not find the row in the primary key");
+		
+		return null;
+	}
+
+	@Override
+	public Object[] getObjects(TableInfo ti, String tableName, JSONObject row) {
+		// \FIXME: we may need to add the primary key of the row if it was autogneerated by MUSIC
+		List<String> cols = ti.columns;
+		int size = cols.size();
+		boolean hasDefault = false;
+		if(row.has(getMusicDefaultPrimaryKeyName())) {
+			size++;
+			hasDefault = true;
+		}
+
+		Object[] objects = new Object[size];
+		int idx = 0;
+		if(hasDefault) {
+			objects[idx++] = row.getString(getMusicDefaultPrimaryKeyName());
+		}
+		for(String col : ti.columns) {
+			objects[idx]=row.get(col);
+		}
+		return objects;
+	}
+
 }

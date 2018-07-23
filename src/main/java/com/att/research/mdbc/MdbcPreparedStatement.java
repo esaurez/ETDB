@@ -27,11 +27,7 @@ import java.util.Calendar;
 
 import org.apache.commons.lang3.StringUtils;
 
-import com.att.research.exceptions.QueryException;
 import com.att.research.logging.EELFLoggerDelegate;
-import com.att.research.logging.format.AppMessages;
-import com.att.research.logging.format.ErrorSeverity;
-import com.att.research.logging.format.ErrorTypes;
 
 /**
  * ProxyStatement is a proxy Statement that front ends Statements from the underlying JDBC driver.  It passes all operations through,
@@ -744,15 +740,4 @@ public class MdbcPreparedStatement extends MdbcStatement implements PreparedStat
 		((CallableStatement)stmt).setNClob(parameterIndex, reader);
 	}
 	
-	private void synchronizeTables(String sql)  {
-		if (sql == null || sql.trim().toLowerCase().startsWith("create")) {
-			if (mgr != null) {
-				try {
-					mgr.synchronizeTables();
-				} catch (QueryException e) {
-					logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
-				}
-			}
-		}
-	}
 }

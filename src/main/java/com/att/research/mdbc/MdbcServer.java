@@ -33,6 +33,10 @@ import java.util.Properties;
 public class MdbcServer {
   public static final EELFLoggerDelegate LOG = EELFLoggerDelegate.getLogger(MdbcStatement.class);
 
+  @Parameter(names = { "-r", "--ranges" }, required = true,
+      description = "This is the file that contains the ranges that are assigned to this MDBC server")
+  private String rangesFile;
+
   @Parameter(names = { "-u", "--url" }, required = true,
       description = "JDBC driver url for the server")
   private String url;
@@ -47,6 +51,7 @@ public class MdbcServer {
       description = "Print the help message")
   private boolean help = false;
 
+  private DatabasePartition ranges;
   private HttpServer server;
 
   public void start() {
@@ -57,91 +62,92 @@ public class MdbcServer {
     }
 
     try {
-      //JdbcMeta meta = new JdbcMeta(url);
-      //\TODO Add configuration file with Server Info
-      Properties connectionProps = new Properties();
-      connectionProps.put("user", "test");
-      connectionProps.put("password", "");
-      MdbcServerLogic meta = new MdbcServerLogic(url,connectionProps);
-      LocalService service = new LocalService(meta);
+    	ranges = DatabasePartition.readJsonFromFile(rangesFile);
+    	//JdbcMeta meta = new JdbcMeta(url);
+    	//\TODO Add configuration file with Server Info
+    	Properties connectionProps = new Properties();
+    	connectionProps.put("user", "test");
+    	connectionProps.put("password", "");
+    	MdbcServerLogic meta = new MdbcServerLogic(url,connectionProps,ranges);
+    	LocalService service = new LocalService(meta);
 
-      // Construct the server
-      this.server = new HttpServer.Builder<>()
-          .withHandler(service, serialization)
-          .withPort(port)
-          .build();
+    	// Construct the server
+    	this.server = new HttpServer.Builder<>()
+    			.withHandler(service, serialization)
+    			.withPort(port)
+    			.build();
 
-      // Then start it
-      server.start();
+    	// Then start it
+    	server.start();
 
-      LOG.info("Started Avatica server on port {} with serialization {}", server.getPort(),
-          serialization);
+    	LOG.info("Started Avatica server on port {} with serialization {}", server.getPort(),
+    			serialization);
     } catch (Exception e) {
-      LOG.error("Failed to start Avatica server", e);
-      Unsafe.systemExit(ExitCodes.START_FAILED.ordinal());
+    	LOG.error("Failed to start Avatica server", e);
+    	Unsafe.systemExit(ExitCodes.START_FAILED.ordinal());
     }
   }
 
   public void stop() {
-    if (null != server) {
-      server.stop();
-      server = null;
-    }
+	  if (null != server) {
+		  server.stop();
+		  server = null;
+	  }
   }
 
   public void join() throws InterruptedException {
-    server.join();
+	  server.join();
   }
 
   public static void main(String[] args) {
-    final MdbcServer server = new MdbcServer();
-    @SuppressWarnings("deprecation")
-	JCommander jc = new JCommander(server, args);
-    if (server.help) {
-      jc.usage();
-      Unsafe.systemExit(ExitCodes.USAGE.ordinal());
-      return;
-    }
+	  final MdbcServer server = new MdbcServer();
+	  @SuppressWarnings("deprecation")
+	  JCommander jc = new JCommander(server, args);
+	  if (server.help) {
+		  jc.usage();
+		  Unsafe.systemExit(ExitCodes.USAGE.ordinal());
+		  return;
+	  }
 
-    server.start();
+	  server.start();
 
-    // Try to clean up when the server is stopped.
-    Runtime.getRuntime().addShutdownHook(
-        new Thread(new Runnable() {
-          @Override public void run() {
-            LOG.info("Stopping server");
-            server.stop();
-            LOG.info("Server stopped");
-          }
-        }));
+	  // Try to clean up when the server is stopped.
+	  Runtime.getRuntime().addShutdownHook(
+			  new Thread(new Runnable() {
+				  @Override public void run() {
+					  LOG.info("Stopping server");
+					  server.stop();
+					  LOG.info("Server stopped");
+				  }
+			  }));
 
-    try {
-      server.join();
-    } catch (InterruptedException e) {
-      // Reset interruption
-      Thread.currentThread().interrupt();
-      // And exit now.
-      return;
-    }
+	  try {
+		  server.join();
+	  } catch (InterruptedException e) {
+		  // Reset interruption
+		  Thread.currentThread().interrupt();
+		  // And exit now.
+		  return;
+	  }
   }
 
   /**
    * Converter from String to Serialization. Must be public for JCommander.
    */
   public static class SerializationConverter implements IStringConverter<Serialization> {
-    @Override public Serialization convert(String value) {
-      return Serialization.valueOf(value.toUpperCase(Locale.ROOT));
-    }
+	  @Override public Serialization convert(String value) {
+		  return Serialization.valueOf(value.toUpperCase(Locale.ROOT));
+	  }
   }
 
   /**
    * Codes for exit conditions
    */
   private enum ExitCodes {
-    NORMAL,
-    ALREADY_STARTED, // 1
-    START_FAILED,    // 2
-    USAGE;           // 3
+	  NORMAL,
+	  ALREADY_STARTED, // 1
+	  START_FAILED,    // 2
+	  USAGE;           // 3
   }
 }
 

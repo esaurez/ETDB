@@ -3,14 +3,22 @@ package com.att.research.mdbc;
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import org.apache.commons.lang3.tuple.Pair;
+import org.json.JSONObject;
+
+import com.att.research.mdbc.DatabasePartition.Range;
 import com.att.research.mdbc.mixins.DBInterface;
 import com.att.research.mdbc.mixins.MixinFactory;
 import com.att.research.mdbc.mixins.MusicInterface;
+import com.att.research.mdbc.mixins.StagingTable;
+import com.att.research.mdbc.mixins.TxCommitProgress;
 import com.att.research.mdbc.mixins.Utils;
 
 import com.att.research.exceptions.MDBCServiceException;
@@ -42,6 +50,7 @@ public class MusicSqlManager {
 	private final DBInterface dbi;
 	private final MusicInterface mi;
 	private final Set<String> table_set;
+	private final Map<String,StagingTable> transactionDigest;
 	private boolean autocommit;			// a copy of the autocommit flag from the JDBC Connection
 
 	/**
@@ -67,19 +76,24 @@ public class MusicSqlManager {
 			this.mi = mi;
 			this.table_set = Collections.synchronizedSet(new HashSet<String>());
 			this.autocommit = true;
+			this.transactionDigest = new HashMap<String,StagingTable>();
 
 		}catch(Exception e) {
 			throw new MDBCServiceException(e.getMessage());
 		}
 	}
 
-	public void setAutoCommit(boolean b) {
+	public void setAutoCommit(boolean b, String commitId, TxCommitProgress progressKeeper) throws MDBCServiceException {
 		if (b != autocommit) {
 			autocommit = b;
 			logger.info(EELFLoggerDelegate.applicationLogger,"autocommit changed to "+b);
 			if (b) {
 				// My reading is that turning autoCOmmit ON should automatically commit any outstanding transaction
-				commit();
+				if(commitId == null) {
+					logger.error(EELFLoggerDelegate.errorLogger, "Connection ID is null",AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
+					throw new MDBCServiceException("connection id is null");
+				}
+				commit(commitId,progressKeeper);
 			}
 		}
 	}
@@ -107,10 +121,10 @@ public class MusicSqlManager {
 	 * @param sql the SQL statement that was executed
 	 */
 	public void postStatementHook(final String sql) {
-		dbi.postStatementHook(sql);
+		dbi.postStatementHook(sql,transactionDigest);
 	}
 	/**
-	 * Synchronize the list of tables in H2 with the list in MUSIC. This function should be called when the
+	 * Synchronize the list of tables in SQL with the list in MUSIC. This function should be called when the
 	 * proxy first starts, and whenever there is the possibility that tables were created or dropped.  It is synchronized
 	 * in order to prevent multiple threads from running this code in parallel.
 	 */
@@ -163,44 +177,93 @@ public class MusicSqlManager {
 	 * This method is called whenever there is a SELECT on a local SQL table, and should be called by the underlying databases
 	 * triggering mechanism.  It first checks the local dirty bits table to see if there are any keys in Cassandra whose value
 	 * has not yet been sent to SQL.  If there are, the appropriate values are copied from Cassandra to the local database.
+	 * Under normal execution, this function behaves as a NOP operation.
 	 * @param tableName This is the table on which the SELECT is being performed
 	 */
 	public void readDirtyRowsAndUpdateDb(String tableName) {
 		mi.readDirtyRowsAndUpdateDb(dbi,tableName);
 	}
+	
+	
+	
+	
 	/**
-	 * This method is called whenever there is an INSERT or UPDATE to a local SQL table, and should be called by the underlying databases
-	 * triggering mechanism. It updates the MUSIC/Cassandra tables (both dirty bits and actual data) corresponding to the SQL write.
-	 * Music propagates it to the other replicas.  If the local database is in the middle of a transaction, the updates to MUSIC are
-	 * delayed until the transaction is either committed or rolled back.
-	 *
-	 * @param tableName This is the table that has changed.
-	 * @param changedRow This is information about the row that has changed, an array of objects representing the data being inserted/updated
+	 * This method gets the primary key that the music interfaces uses by default.
+	 * If the front end uses a primary key, this will not match what is used in the MUSIC interface
+	 * @return
 	 */
-	public void updateDirtyRowAndEntityTableInMusic(String tableName, Object[] changedRow) {
-		//TODO: is this right? should we be saving updates at the client? we should leverage JDBC to handle this
-		if (autocommit) {
-			TableInfo ti = dbi.getTableInfo(tableName);
-			mi.updateDirtyRowAndEntityTableInMusic(ti,tableName, changedRow);
-		} else {
-			saveUpdate("update", tableName, changedRow);
+	public String getMusicDefaultPrimaryKeyName() {
+		return mi.getMusicDefaultPrimaryKeyName();
+	}
+	
+	/**
+	 * Asks music interface to provide the function to create a primary key
+	 * e.g. uuid(), 1, "unique_aksd419fjc"
+	 * @return
+	 */
+	public String generateUniqueKey() {
+		// 
+		return mi.generateUniqueKey();
+	}
+	
+	
+	/**
+	 * Perform a commit, as requested by the JDBC driver.  If any row updates have been delayed,
+	 * they are performed now and copied into MUSIC.
+	 * @throws MDBCServiceException 
+	 */
+	public synchronized void commit(String commitId,TxCommitProgress progressKeeper) throws MDBCServiceException {
+		logger.info(EELFLoggerDelegate.applicationLogger, " commit ");
+		// transaction was committed -- add all the updates into the REDO-Log in MUSIC
+		try {
+			List<Pair<DatabasePartition.Range,HashMap<String,StagingTable>>> stagingTablesPerRange= separateStagingTable();
+			//\TODO: Analyze if it is worth to parallelize this process
+			// Each range is completely independent
+			for(Pair<Range, HashMap<String, StagingTable>> stagingTableWithPartition : stagingTablesPerRange) {
+				mi.commitLog(dbi,stagingTableWithPartition.getRight(),stagingTableWithPartition.getLeft(),commitId,progressKeeper);
+			}
+		}catch(MDBCServiceException e) {
+			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
+			throw e;
 		}
 	}
+
 	/**
-	 * This method is called whenever there is a DELETE on a local SQL table, and should be called by the underlying databases
-	 * triggering mechanism. It updates the MUSIC/Cassandra tables (both dirty bits and actual data) corresponding to the SQL DELETE.
-	 * Music propagates it to the other replicas.  If the local database is in the middle of a transaction, the DELETEs to MUSIC are
-	 * delayed until the transaction is either committed or rolled back.
-	 * @param tableName This is the table on which the select is being performed
-	 * @param oldRow This is information about the row that is being deleted
+	 * This function separate the current staging table into multiple staging table
+	 * Each staging table in the list should be within one partition
+	 * \TODO how to guarantee that a partition is not going to happen while execution
+	 * HINT: Make sure you own the locks before even trying to commit
+	 * @return list of staging tables
 	 */
-	public void deleteFromEntityTableInMusic(String tableName, Object[] oldRow) {
-		if (autocommit) {
-			TableInfo ti = dbi.getTableInfo(tableName);
-			mi.deleteFromEntityTableInMusic(ti,tableName, oldRow);
-		} else {
-			saveUpdate("delete", tableName, oldRow);
-		}
+	private List<Pair<DatabasePartition.Range,HashMap<String, StagingTable>>> separateStagingTable() {
+		//\FIXME implement this function
+		throw new UnsupportedOperationException("Separate Staging Table has to be implemented");
+	}
+
+	/**
+	 * Perform a rollback, as requested by the JDBC driver.  If any row updates have been delayed,
+	 * they are discarded.
+	 */
+	public synchronized void rollback() {
+		// transaction was rolled back - discard the updates
+		logger.info(EELFLoggerDelegate.applicationLogger, "Rollback");;
+		transactionDigest.clear();
+	}
+
+	/**
+	 * Get all 
+	 * @param table
+	 * @param dbRow
+	 * @return
+	 */
+	public String getMusicKeyFromRowWithoutPrimaryIndexes(String table, JSONObject dbRow) {
+		TableInfo ti = dbi.getTableInfo(table);
+		return mi.getMusicKeyFromRowWithoutPrimaryIndexes(ti,table, dbRow);
+	}
+	
+	public String getMusicKeyFromRow(String table, JSONObject dbRow) {
+		TableInfo ti = dbi.getTableInfo(table);
+		return mi.getMusicKeyFromRow(ti,table, dbRow);
 	}
 	
 	/**
@@ -211,6 +274,7 @@ public class MusicSqlManager {
 	 */
 	public ArrayList<String> getMusicKeys(String sql) {
 		ArrayList<String> musicKeys = new ArrayList<String>();
+		//\TODO See if this is required
 		/*
 		try {
 			net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(sql);
@@ -253,93 +317,5 @@ public class MusicSqlManager {
 		}
 		*/
 		return musicKeys;
-
 	}
-	
-	
-	/**
-	 * This method gets the primary key that the music interfaces uses by default.
-	 * If the front end uses a primary key, this will not match what is used in the MUSIC interface
-	 * @return
-	 */
-	public String getMusicDefaultPrimaryKeyName() {
-		return mi.getMusicDefaultPrimaryKeyName();
-	}
-	
-	/**
-	 * Asks music interface to provide the function to create a primary key
-	 * e.g. uuid(), 1, "unique_aksd419fjc"
-	 * @return
-	 */
-	public String generatePrimaryKey() {
-		// 
-		return mi.generatePrimaryKey();
-	}
-	
-	
-	
-	private class RowUpdate {
-		public final String type, table;
-		public final Object[] row;
-		public RowUpdate(String type, String table, Object[] row) {
-			this.type = type;
-			this.table = table;
-			this.row = new Object[row.length];
-			// Make  copy of row, just to be safe...
-			System.arraycopy(row, 0, this.row, 0, row.length);
-		}
-	}
-
-	private List<RowUpdate> delayed_updates = new ArrayList<RowUpdate>();
-
-	private void saveUpdate(String type, String table, Object[] row) {
-		RowUpdate upd = new RowUpdate(type, table, row);
-		delayed_updates.add(upd);
-	}
-
-	/**
-	 * Perform a commit, as requested by the JDBC driver.  If any row updates have been delayed,
-	 * they are performed now and copied into MUSIC.
-	 */
-	public synchronized void commit() {
-		logger.info(EELFLoggerDelegate.applicationLogger, " commit ");
-		// transaction was committed -- play all the updates into MUSIC
-		List<RowUpdate> mylist = delayed_updates;
-		delayed_updates = new ArrayList<RowUpdate>();
-		logger.info(EELFLoggerDelegate.applicationLogger, " Row Update "+mylist.size());
-		for (RowUpdate upd : mylist) {
-			if (upd.type.equals("update")) {
-				try {
-					TableInfo ti = dbi.getTableInfo(upd.table);
-					mi.updateDirtyRowAndEntityTableInMusic(ti,upd.table, upd.row);
-				}catch(Exception e) {
-					logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
-				}
-			} else if (upd.type.equals("delete")) {
-				try {
-					TableInfo ti = dbi.getTableInfo(upd.table);
-					mi.deleteFromEntityTableInMusic(ti,upd.table, upd.row);
-				}catch(Exception e) {
-					logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Perform a rollback, as requested by the JDBC driver.  If any row updates have been delayed,
-	 * they are discarded.
-	 */
-	public synchronized void rollback() {
-		// transaction was rolled back - discard the updates
-		logger.info(EELFLoggerDelegate.applicationLogger, "Rollback");;
-		delayed_updates.clear();
-	}
-
-	public String getMusicKeysFromRow(String table, Object[] dbRow) {
-		TableInfo ti = dbi.getTableInfo(table);
-		return mi.getMusicKeyFromRow(ti,table, dbRow);
-	}
-	
-	
 }

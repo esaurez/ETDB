@@ -2,6 +2,7 @@ package com.att.research.mdbc.mixins;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -11,6 +12,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
+
+import org.json.JSONObject;
 
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.TableInfo;
@@ -24,6 +27,55 @@ import com.datastax.driver.core.utils.Bytes;
 public class Utils {
 	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(Utils.class);
 	
+	/**
+	 * Transforms and JsonObject into an array of objects
+	 * @param ti information related to the table
+	 * @param tbl table that jo belong to
+	 * @param jo object that represents a row in the table
+	 * @param musicDefaultPrimaryKeyName contains the name of key associated with the default primary key used by MUSIC, it can be null, if not requird 
+	 * @return array with the objects in the row
+	 */
+	public static Object[] jsonToRow(TableInfo ti, String tbl, JSONObject jo, String musicDefaultPrimaryKeyName) {
+		int columnSize = ti.columns.size();
+		ArrayList<Object> rv = new ArrayList<Object>();
+		if (musicDefaultPrimaryKeyName!=null && jo.has(musicDefaultPrimaryKeyName)) { 
+			rv.add(jo.getString(musicDefaultPrimaryKeyName)); 
+		}
+		for (int i = 0; i < columnSize; i++) {
+			String colname = ti.columns.get(i);
+			switch (ti.coltype.get(i)) {
+			case Types.BIGINT:
+				rv.add(jo.optLong(colname, 0));
+				break;
+			case Types.BOOLEAN:
+				rv.add(jo.optBoolean(colname, false));
+				break;
+			case Types.BLOB:
+				rv.add(jo.optString(colname, ""));
+				break;
+			case Types.DECIMAL:
+				rv.add(jo.optBigDecimal(colname, BigDecimal.ZERO));
+				break;
+			case Types.DOUBLE:
+				rv.add(jo.optDouble(colname, 0));
+				break;
+			case Types.INTEGER:
+				rv.add(jo.optInt(colname, 0));
+				break;
+			case Types.TIMESTAMP:
+				//rv[i] = new Date(jo.optString(colname, ""));
+				rv.add(jo.optString(colname, ""));
+				break;
+			case Types.DATE:
+			case Types.VARCHAR:
+				//Fall through
+			default:
+				rv.add(jo.optString(colname, ""));
+				break;
+			}
+		}
+		return rv.toArray();
+	}
 	
 	/**
 	 * Return a String equivalent of an Object.  Useful for writing SQL.

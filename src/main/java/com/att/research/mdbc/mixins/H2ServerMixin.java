@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.Date;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
@@ -136,7 +137,7 @@ public class H2ServerMixin extends H2Mixin {
 	 * @param sql the SQL statement that was executed
 	 */
 	@Override
-	public void postStatementHook(final String sql) {
+	public void postStatementHook(final String sql, Map<String,StagingTable> transactionDigest) {
 		if (sql != null) {
 			String[] parts = sql.trim().split(" ");
 			String cmd = parts[0].toLowerCase();
@@ -153,12 +154,15 @@ public class H2ServerMixin extends H2Mixin {
 						String tbl  = rs.getString("TABLENAME");
 						String keys = rs.getString("KEYDATA");
 						JSONObject jo = new JSONObject(new JSONTokener(keys));
+						@SuppressWarnings("unused")
 						Object[] row = jsonToRow(tbl, jo);
 						// copy to cassandra
+						//\TODO Update to use the REDO LOG
+						// This is outdated
 						if (op ==  H2ServerMixinTriggerHandler.OP_DELETE) {
-							msm.deleteFromEntityTableInMusic(tbl, row);
+							//msm.deleteFromEntityTableInMusic(tbl, row);
 						} else {
-							msm.updateDirtyRowAndEntityTableInMusic(tbl, row);
+							//msm.updateDirtyRowAndEntityTableInMusic(tbl, row);
 						}
 						rows.add(ix);
 					}
@@ -235,7 +239,7 @@ public class H2ServerMixin extends H2Mixin {
 				 
 				JSONObject jo = new JSONObject();
 				if (!getTableInfo(tableName).hasKey()) {
-						String musicKey = msm.generatePrimaryKey();;
+						String musicKey = msm.generateUniqueKey();
 						jo.put(msm.getMusicDefaultPrimaryKeyName(), musicKey);	
 				}
 					
@@ -243,9 +247,11 @@ public class H2ServerMixin extends H2Mixin {
 						jo.put(col, rs.getString(col));
 				}
 					
+				@SuppressWarnings("unused")
 				Object[] row = jsonToRow(tableName, jo);
 				
-				msm.updateDirtyRowAndEntityTableInMusic(tableName, row);
+				//\TODO Update to use the REDO log commit system 
+				//msm.updateDirtyRowAndEntityTableInMusic(tableName, row);
 				 
 			 }
 		} catch (Exception e) {

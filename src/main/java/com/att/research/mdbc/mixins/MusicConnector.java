@@ -51,29 +51,48 @@ public class MusicConnector {
 			cluster.close();
 		cluster = null;
 	}
-
-	private void connectToMultipleAddresses(String address) {
-			MusicCore.getDSHandle(address);
-		/*
-		PoolingOptions poolingOptions =
-			new PoolingOptions()
-	    	.setConnectionsPerHost(HostDistance.LOCAL,  4, 10)
-	    	.setConnectionsPerHost(HostDistance.REMOTE, 2, 4);
-		String[] music_hosts = address.split(",");
-		if (cluster == null) {
-			logger.info(EELFLoggerDelegate.applicationLogger,"Initializing MUSIC Client with endpoints "+address);
-			cluster = Cluster.builder()
-				.withPort(9042)
-				.withPoolingOptions(poolingOptions)
-				.withoutMetrics()
-				.addContactPoints(music_hosts)
-				.build();
-			Metadata metadata = cluster.getMetadata();
-			logger.info(EELFLoggerDelegate.applicationLogger,"Connected to cluster:"+metadata.getClusterName()+" at address:"+address);
-			
+	
+	private List<String> getAllPossibleLocalIps(){
+		ArrayList<String> allPossibleIps = new ArrayList<String>();
+		try {
+			Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
+			while(en.hasMoreElements()){
+			    NetworkInterface ni=(NetworkInterface) en.nextElement();
+			    Enumeration<InetAddress> ee = ni.getInetAddresses();
+			    while(ee.hasMoreElements()) {
+			        InetAddress ia= (InetAddress) ee.nextElement();
+			        allPossibleIps.add(ia.getHostAddress());
+			    }
+			 }
+		} catch (SocketException e) {
+			e.printStackTrace();
 		}
-		session = cluster.connect();
-	*/}
+		return allPossibleIps;
+	}
+	
+	private void connectToMultipleAddresses(String address) {
+		MusicCore.getDSHandle(address);
+	/*
+	PoolingOptions poolingOptions =
+		new PoolingOptions()
+    	.setConnectionsPerHost(HostDistance.LOCAL,  4, 10)
+    	.setConnectionsPerHost(HostDistance.REMOTE, 2, 4);
+	String[] music_hosts = address.split(",");
+	if (cluster == null) {
+		logger.info(EELFLoggerDelegate.applicationLogger,"Initializing MUSIC Client with endpoints "+address);
+		cluster = Cluster.builder()
+			.withPort(9042)
+			.withPoolingOptions(poolingOptions)
+			.withoutMetrics()
+			.addContactPoints(music_hosts)
+			.build();
+		Metadata metadata = cluster.getMetadata();
+		logger.info(EELFLoggerDelegate.applicationLogger,"Connected to cluster:"+metadata.getClusterName()+" at address:"+address);
+		
+	}
+	session = cluster.connect();
+	 */
+	}
 
 	@SuppressWarnings("unused")
 	private void connectToCassaCluster(String address) {
@@ -102,23 +121,5 @@ public class MusicConnector {
 				address = it.next();
 			}
 		}
-	}
-
-	private List<String> getAllPossibleLocalIps(){
-		ArrayList<String> allPossibleIps = new ArrayList<String>();
-		try {
-			Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
-			while(en.hasMoreElements()){
-			    NetworkInterface ni=(NetworkInterface) en.nextElement();
-			    Enumeration<InetAddress> ee = ni.getInetAddresses();
-			    while(ee.hasMoreElements()) {
-			        InetAddress ia= (InetAddress) ee.nextElement();
-			        allPossibleIps.add(ia.getHostAddress());
-			    }
-			 }
-		} catch (SocketException e) {
-			e.printStackTrace();
-		}
-		return allPossibleIps;
 	}
 }

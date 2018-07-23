@@ -1,5 +1,7 @@
 package com.att.research.mdbc.mixins;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import com.att.research.logging.EELFLoggerDelegate;
@@ -11,10 +13,11 @@ public class TxCommitProgress{
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(TxCommitProgress.class);
 
 	private AtomicLong nextCommitId;
-	private ConcurrentHashMap<String, CommitProgress> transactionInfo = new ConcurrentHashMap<>();
+	private Map<String, CommitProgress> transactionInfo;
 
 	public TxCommitProgress(){
 		nextCommitId.set(0);
+		transactionInfo = new ConcurrentHashMap<>();
 	}
 	
 	public boolean containsTx(String txId) {
@@ -61,28 +64,28 @@ public class TxCommitProgress{
 		return prog.getConnection();
 	}
 	
-	public void setRecordId(String txId, String recordId){
+	public void setRecordId(String txId, String partitionId, RedoRecordId recordId){
 		CommitProgress prog = transactionInfo.get(txId);
 		if(prog == null){
 			logger.error(EELFLoggerDelegate.errorLogger, "Transaction doesn't exist: [%l], failure when setting record Id",txId);
 		}
-		prog.setRecordId(recordId);
+		prog.setRecordId(partitionId,recordId);
 	}
 	
-	public String getRecordId(String txId) {
+	public RedoRecordId getRecordId(String txId, String partitionId) {
 		CommitProgress prog = transactionInfo.get(txId);
 		if(prog == null){
 			logger.error(EELFLoggerDelegate.errorLogger, "Transaction doesn't exist: [%l], failure when getting record Id",txId);
 		}
-		return prog.getRecordId();
+		return prog.getRecordId(partitionId);
 	}
 	
-	public boolean isRecordIdAssigned(String txId) {
+	public boolean isRecordIdAssigned(String txId,String partitionId) {
 		CommitProgress prog = transactionInfo.get(txId);
 		if(prog == null){
 			logger.error(EELFLoggerDelegate.errorLogger, "Transaction doesn't exist: [%l], failure when checking record",txId);
 		}
-		return prog.isRedoRecordAssigned();
+		return prog.isRedoRecordAssigned(partitionId);
 	}
 	
 	public boolean isComplete(String txId) {
@@ -109,10 +112,10 @@ final class CommitProgress{
 	boolean MusicDone; // indicates if music commit was already performed, atomic bool
 	Connection connection;// reference to a connection object. This is used to complete a commit if it failed in the original thread.
 	long timestamp; // last time this data structure was updated
-	String redoRecordId;
+	Map<String,RedoRecordId> redoRecordIds;// record id for each partition
 
 	public CommitProgress(String id,Connection conn){
-		redoRecordId="";
+		redoRecordIds=new HashMap<>();
 		lTxId = id;
 		commitRequested = false;
 		SQLDone = false;
@@ -126,7 +129,7 @@ final class CommitProgress{
 	}
 	
 	public synchronized void reinitialize() {
-		redoRecordId="";
+		redoRecordIds=new HashMap<>();
 		commitRequested = false;
 		SQLDone = false;
 		MusicDone = false;
@@ -157,17 +160,17 @@ final class CommitProgress{
 		return timestamp;
 	}
 
-	public synchronized void setRecordId(String id) {
-		redoRecordId=id;
+	public synchronized void setRecordId(String partitionId, RedoRecordId id) {
+		redoRecordIds.put(partitionId, id);
 		timestamp = System.currentTimeMillis();
 	}
 	
-	public synchronized boolean isRedoRecordAssigned() {
-		return !(redoRecordId.isEmpty());
+	public synchronized boolean isRedoRecordAssigned(String partitionId) {
+		return redoRecordIds.containsKey(partitionId) && !redoRecordIds.get(partitionId).isEmpty();
 	} 
 
-	public synchronized String getRecordId() {
-		return redoRecordId;
+	public synchronized RedoRecordId getRecordId(String partitionId) {
+		return redoRecordIds.get(partitionId);
 	} 
 
 }

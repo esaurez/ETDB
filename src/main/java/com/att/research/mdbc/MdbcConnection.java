@@ -26,6 +26,7 @@ import com.att.research.logging.format.AppMessages;
 import com.att.research.logging.format.ErrorSeverity;
 import com.att.research.logging.format.ErrorTypes;
 import com.att.research.mdbc.mixins.MusicInterface;
+import com.att.research.mdbc.mixins.TxCommitProgress;
 
 
 /**
@@ -39,10 +40,13 @@ import com.att.research.mdbc.mixins.MusicInterface;
 public class MdbcConnection implements Connection {
 	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(Driver.class);
 	
+	private final String id;
 	private final Connection conn;		// the JDBC Connection to the actual underlying database
 	private final MusicSqlManager mgr;	// there should be one MusicSqlManager in use per Connection
+	private final TxCommitProgress progressKeeper;
 
-	public MdbcConnection(String url, Connection c, Properties info, MusicInterface mi) throws MDBCServiceException {
+	public MdbcConnection(String id, String url, Connection c, Properties info, MusicInterface mi, TxCommitProgress progressKeeper) throws MDBCServiceException {
+		this.id = id;
 		if (c == null) {
 			throw new MDBCServiceException("Connection is null");
 		}
@@ -54,7 +58,7 @@ public class MdbcConnection implements Connection {
 			throw e;
 		}
 		try {
-			this.mgr.setAutoCommit(c.getAutoCommit());
+			this.mgr.setAutoCommit(c.getAutoCommit(),null,null);
 		} catch (SQLException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 		}
@@ -71,7 +75,9 @@ public class MdbcConnection implements Connection {
 		}
 		else {
 			logger.error(EELFLoggerDelegate.errorLogger, "MusicSqlManager was not correctly created", AppMessages.UNKNOWNERROR, ErrorTypes.UNKNOWN, ErrorSeverity.FATAL);
+			throw new MDBCServiceException("Music SQL Manager object is null or invalid");
 		}
+		this.progressKeeper = progressKeeper;
 	}
 
 	@Override
@@ -111,7 +117,13 @@ public class MdbcConnection implements Connection {
 	public void setAutoCommit(boolean autoCommit) throws SQLException {
 		boolean b = conn.getAutoCommit();
 		if (b != autoCommit) {
-			mgr.setAutoCommit(autoCommit);
+			try {
+				String commitId = (autoCommit)? Long.toString(progressKeeper.getNextCommitId()) : null;
+				mgr.setAutoCommit(autoCommit,commitId,progressKeeper);
+			} catch (MDBCServiceException e) {
+				logger.error(EELFLoggerDelegate.errorLogger, "Commit to music failed", AppMessages.UNKNOWNERROR, ErrorTypes.UNKNOWN, ErrorSeverity.FATAL);
+				throw new SQLException("Failure commiting to MUSIC");
+			}
 			conn.setAutoCommit(autoCommit);
 		}
 	}
@@ -123,8 +135,20 @@ public class MdbcConnection implements Connection {
 
 	@Override
 	public void commit() throws SQLException {
-		mgr.commit();
+		String commitId = Long.toString(progressKeeper.getNextCommitId());
+		if(progressKeeper != null) {
+			progressKeeper.commitRequested(id);
+		}
+		try {
+			mgr.commit(commitId,progressKeeper);
+		} catch (MDBCServiceException e) {
+			//If the commit fail, then a new commitId should be used 
+			logger.error(EELFLoggerDelegate.errorLogger, "Commit to music failed", AppMessages.UNKNOWNERROR, ErrorTypes.UNKNOWN, ErrorSeverity.FATAL);
+			throw new SQLException("Failure commiting to MUSIC");
+		}
+		progressKeeper.setMusicDone(id);;
 		conn.commit();
+		progressKeeper.setSQLDone(id);
 		//MusicMixin.releaseZKLocks(MusicMixin.currentLockMap.get(getConnID()));
 	}
 
@@ -132,6 +156,7 @@ public class MdbcConnection implements Connection {
 	public void rollback() throws SQLException {
 		mgr.rollback();
 		conn.rollback();
+		progressKeeper.reinitializeTxProgress(id);
 	}
 
 	@Override

@@ -24,6 +24,7 @@ public class MdbcStatement implements Statement {
 
 	final Statement stmt;		// the Statement that we are proxying
 	final MusicSqlManager mgr;
+	//\TODO We may need to all pass the connection object to support autocommit
 
 	public MdbcStatement(Statement s, MusicSqlManager m) {
 		this.stmt = s;
@@ -32,6 +33,7 @@ public class MdbcStatement implements Statement {
 	}
 
 	public MdbcStatement(Statement stmt, String sql, MusicSqlManager mgr) {
+		//\TODO why there is a constructor with a sql parameter in a not PreparedStatement
 		this.stmt = stmt;
 		this.mgr = mgr;
 	}
@@ -124,6 +126,7 @@ public class MdbcStatement implements Statement {
 
 	@Override
 	public void setQueryTimeout(int seconds) throws SQLException {
+		//\TODO: we also need to implement a higher level timeout in MDBC 
 		logger.info(EELFLoggerDelegate.applicationLogger,"setQueryTimeout seconds "+ seconds);
 		stmt.setQueryTimeout(seconds);
 	}
@@ -152,6 +155,7 @@ public class MdbcStatement implements Statement {
 	public boolean execute(String sql) throws SQLException {
 		logger.info(EELFLoggerDelegate.applicationLogger,"execute: "+sql);
 		boolean b = false;
+		//\TODO Add the result of the postStatementHook to b
 		try {
 			mgr.preStatementHook(sql);
 			b = stmt.execute(sql);
@@ -353,6 +357,7 @@ public class MdbcStatement implements Statement {
 	@Override
 	public boolean execute(String sql, String[] columnNames) throws SQLException {
 		logger.info(EELFLoggerDelegate.applicationLogger,"execute: "+sql);
+		//\TODO Idem to the other execute without columnNames
 		boolean b = false;
 		try {
 			mgr.preStatementHook(sql);
@@ -398,7 +403,7 @@ public class MdbcStatement implements Statement {
 		return stmt.isCloseOnCompletion();
 	}
 	
-	private void synchronizeTables(String sql)  {
+	protected void synchronizeTables(String sql)  {
 		if (sql == null || sql.trim().toLowerCase().startsWith("create")) {
 			if (mgr != null) {
 				try {

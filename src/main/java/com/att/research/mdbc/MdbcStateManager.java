@@ -46,12 +46,16 @@ public class MdbcStateManager implements StateManager{
     
     private Properties info;
     
-    public MdbcStateManager(String url, Properties info){
+    @SuppressWarnings("unused")
+	private DatabasePartition ranges;
+    
+    public MdbcStateManager(String url, Properties info, DatabasePartition ranges){
+    	this.ranges=ranges;
     	this.url = url;
     	this.info = info;
     	this.transactionInfo = new TxCommitProgress();
         String mixin  = info.getProperty(Configuration.KEY_MUSIC_MIXIN_NAME, Configuration.MUSIC_MIXIN_DEFAULT);
-        this.musicManager = MixinFactory.createMusicInterface(mixin, url, info);
+        this.musicManager = MixinFactory.createMusicInterface(mixin, url, info,ranges);
         this.musicManager.createKeyspace();
         this.musicManager.initializeMdbcDataStructures();
         MusicMixin.loadProperties();
@@ -83,7 +87,7 @@ public class MdbcStateManager implements StateManager{
 		}
 		//Create MDBC connection
     	try {
-			newConnection = new MdbcConnection(url, sqlConnection, info, this.musicManager);
+			newConnection = new MdbcConnection(id, url, sqlConnection, info, this.musicManager, transactionInfo);
 		} catch (MDBCServiceException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
 			newConnection = null;
@@ -93,4 +97,10 @@ public class MdbcStateManager implements StateManager{
     	transactionInfo.createNewTransactionTracker(id, sqlConnection);
     	return newConnection;
     }
+
+	@Override
+	public void InitializeSystem() {
+		//\TODO Prefetch data to system using the data ranges as guide 
+		throw new UnsupportedOperationException("Function initialize system needs to be implemented id MdbcStateManager");
+	}
 }

@@ -21,10 +21,12 @@ public class MdbcServerLogic extends JdbcMeta{
 	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(MdbcServerLogic.class);
 
 	StateManager manager;
+	DatabasePartition ranges;
 
-	public MdbcServerLogic(String Url, Properties info) throws SQLException {
+	public MdbcServerLogic(String Url, Properties info,DatabasePartition ranges) throws SQLException {
 		super(Url,info);
-		this.manager = new MdbcStateManager(Url,info);
+		this.manager = new MdbcStateManager(Url,info,ranges);
+		this.ranges = ranges;
 	}
 	
 	@Override

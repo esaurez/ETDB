@@ -1,8 +1,13 @@
 package com.att.research.mdbc.mixins;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.json.JSONObject;
+
+import com.att.research.exceptions.MDBCServiceException;
+import com.att.research.mdbc.DatabasePartition;
 import com.att.research.mdbc.TableInfo;
 
 /**
@@ -30,13 +35,18 @@ public interface MusicInterface {
 	 * generates a key or placeholder for what is required for a primary key
 	 * @return a primary key
 	 */
-	String generatePrimaryKey();
+	String generateUniqueKey();
+
 	/**
-	 * Select * from [table] where [where string]
-	 * @param where
-	 * @return list of primary keys
+	 * Find the key used with Music for a table that was created without a primary index
+	 * Name is long to avoid developers using it. For cassandra performance in this operation
+	 * is going to be really bad
+	 * @param ti information of the table in the SQL layer
+	 * @param table name of the table
+	 * @param dbRow row obtained from the SQL layer
+	 * @return key associated with the row
 	 */
-	String getMusicKeyFromRow(TableInfo ti, String table, Object[] dbRow);
+	String getMusicKeyFromRowWithoutPrimaryIndexes(TableInfo ti, String table, JSONObject dbRow);
 	/**
 	 * Do what is needed to close down the MUSIC connection.
 	 */
@@ -74,13 +84,13 @@ public interface MusicInterface {
 	 * @param keys an ordered list of the values being put into the table.  The values that correspond to the tables'
 	 * primary key are copied into the dirty row table.
 	 */
-	void markDirtyRow(TableInfo ti, String tableName, Object[] keys);
+	void markDirtyRow(TableInfo ti, String tableName, JSONObject keys);
 	/**
 	 * Remove the entries from the dirty row (for this replica) that correspond to a set of primary keys
 	 * @param tableName the table we are removing dirty entries from
 	 * @param keys the primary key values to use in the DELETE.  Note: this is *only* the primary keys, not a full table row.
 	 */
-	void cleanDirtyRow(TableInfo ti, String tableName, Object[] keys);
+	void cleanDirtyRow(TableInfo ti, String tableName, JSONObject keys);
 	/**
 	 * Get a list of "dirty rows" for a table.  The dirty rows returned apply only to this replica,
 	 * and consist of a Map of primary key column names and values.
@@ -95,7 +105,7 @@ public interface MusicInterface {
 	 * @param tableName This is the table that has changed.
 	 * @param oldRow This is a copy of the old row being deleted
 	 */
-	void deleteFromEntityTableInMusic(TableInfo ti,String tableName, Object[] oldRow);
+	void deleteFromEntityTableInMusic(TableInfo ti,String tableName, JSONObject oldRow);
 	/**
 	 * This method is called whenever there is a SELECT on a local SQL table, wherein it first checks the local
 	 * dirty bits table to see if there are any rows in Cassandra whose value needs to be copied to the local SQL DB.
@@ -109,8 +119,30 @@ public interface MusicInterface {
 	 * @param tableName This is the table that has changed.
 	 * @param changedRow This is information about the row that has changed
 	 */
-	void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, Object[] changedRow);
+	void updateDirtyRowAndEntityTableInMusic(TableInfo ti, String tableName, JSONObject changedRow);
 	
-	String getPrimaryKey(TableInfo ti, String tableName, Object[] changedRow);
+	Object[] getObjects(TableInfo ti, String tableName, JSONObject row);
+	/**
+	 * Returns the primary key associated with the given row 
+	 * @param ti info of the table that is associated with the row
+	 * @param tableName name of the table that contains the row
+	 * @param changedRow row that is going to contain the information associated with the primary key
+	 * @return primary key of the row
+	 */
+	String getMusicKeyFromRow(TableInfo ti, String tableName, JSONObject changedRow);
+	/**
+	 * Initializes all MDBC tables and associated data structures
+	 * This needs to be called when starting the music interface 
+	 */
 	void createMdbcDataStructures();
+
+	/**
+	 * Commits the corresponding REDO-log into MUSIC 
+	 * @param dbi, the database interface use in the local SQL cache, where the music interface is being used
+	 * @param transactionDigest digest of the transaction that is being commited into the redo log in music. It has to be a HashMap, because it is required to be serializable
+	 * @param commitId id associated with the log being send
+	 * \TODO Improve this interface, it is too polluted, for example the dbi and the progressKeeper may be pushed outside.
+	 */
+	void commitLog(DBInterface dbi, HashMap<String,StagingTable> transactionDigest, DatabasePartition.Range partition, String commitId,TxCommitProgress progressKeeper) throws MDBCServiceException;
 }
+

@@ -70,6 +70,7 @@ public class H2MixinTriggerHandler implements Trigger {
 				logger.error(EELFLoggerDelegate.errorLogger,"Trigger called but there is no MusicSqlManager found for triggerName "+triggerName);
 				
 			} else {
+				//\TODO update to use staging table and REDO log
 				if (oldRow == null) {
 					if (newRow == null) {
 						// this is a SELECT Query; just merge the table
@@ -79,17 +80,17 @@ public class H2MixinTriggerHandler implements Trigger {
 					} else {
 						// this is an INSERT
 						logger.info(EELFLoggerDelegate.applicationLogger,"In trigger fire, Trigger Name:"+ triggerName+", Operation type: INSERT, newrow="+cat(newRow));
-						musicHandle.updateDirtyRowAndEntityTableInMusic(tableName, newRow);
+						//musicHandle.updateDirtyRowAndEntityTableInMusic(tableName, newRow);
 					}
 				} else {
 					if (newRow == null) {
 						// this is a DELETE
 						logger.info(EELFLoggerDelegate.applicationLogger,"In trigger fire, Trigger Name:"+ triggerName+", Operation type: DELETE, oldrow="+cat(oldRow));
-						musicHandle.deleteFromEntityTableInMusic(tableName, oldRow);
+						//musicHandle.deleteFromEntityTableInMusic(tableName, oldRow);
 					} else {
 						// this is an UPDATE
 						logger.info(EELFLoggerDelegate.applicationLogger,"In trigger fire, Trigger Name:"+ triggerName+", Operation type: UPDATE, newrow="+cat(newRow));
-						musicHandle.updateDirtyRowAndEntityTableInMusic(tableName, newRow);
+						//musicHandle.updateDirtyRowAndEntityTableInMusic(tableName, newRow);
 					}
 				}
 			}

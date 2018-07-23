@@ -73,7 +73,7 @@ public interface DBInterface {
 	 * @param sql the SQL statement that was executed
 	 * @param keys that were updated in the sql call
 	 */
-	public void postStatementHook(final String sql);
+	public void postStatementHook(final String sql,Map<String,StagingTable> transactionDigest);
 	/**
 	 * This method executes a read query in the SQL database.  Methods that call this method should be sure
 	 * to call resultset.getStatement().close() when done in order to free up resources.

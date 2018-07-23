@@ -1,6 +1,5 @@
 package com.att.research.mdbc.mixins;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -395,6 +394,7 @@ NEW.field refers to the new value
 		// TODO - remove any entries from MDBC_TRANSLOG corresponding to this update
 		//	SELECT IX, OP, KEYDATA FROM MDBC_TRANS_TBL WHERE CONNID = "+connId AND TABLENAME = tblname
 	}
+
 	private boolean rowExists(String tableName, TableInfo ti, Map<String, Object> map) {
 		StringBuilder where = new StringBuilder();
 		String pfx = "";
@@ -416,47 +416,7 @@ NEW.field refers to the new value
 			return false;
 		}
 	}
-	@Deprecated
-	public void insertRowIntoSqlDbOLD(String tableName, Map<String, Object> map) {
-		// First construct the value string and column name string for the db write
-		TableInfo ti = getTableInfo(tableName);
-		StringBuilder fields = new StringBuilder();
-		StringBuilder values = new StringBuilder();
-		String pfx = "";
-		for (String col : ti.columns) {
-			fields.append(pfx).append(col);
-			values.append(pfx).append(Utils.getStringValue(map.get(col)));
-			pfx = ", ";
-		}
 
-		try {
-			String sql = String.format("INSERT INTO %s (%s) VALUES (%s);", tableName, fields.toString(), values.toString());
-			executeSQLWrite(sql);
-		} catch (SQLException e) {
-			logger.error(EELFLoggerDelegate.errorLogger,"Insert failed because row exists, do an update");
-			StringBuilder where = new StringBuilder();
-			pfx = "";
-			String pfx2 = "";
-			fields.setLength(0);
-			for (int i = 0; i < ti.columns.size(); i++) {
-				String col = ti.columns.get(i);
-				String val = Utils.getStringValue(map.get(col));
-				if (ti.iskey.get(i)) {
-					where.append(pfx).append(col).append("=").append(val);
-					pfx = " AND ";
-				} else {
-					fields.append(pfx2).append(col).append("=").append(val);
-					pfx2 = ", ";
-				}
-			}
-			String sql = String.format("UPDATE %s SET %s WHERE %s", tableName, fields.toString(), where.toString());
-			try {
-				executeSQLWrite(sql);
-			} catch (SQLException e1) {
-				logger.error(EELFLoggerDelegate.errorLogger,"executeSQLWrite"+e1);
-			}
-		}
-	}
 
 	@Override
 	public void deleteRowFromSqlDb(String tableName, Map<String, Object> map) {
@@ -535,30 +495,52 @@ NEW.field refers to the new value
 			}
 		}
 	}
+
 	/**
 	 * Code to be run within the DB driver after a SQL statement has been executed.  This is where remote
 	 * statement actions can be copied back to Cassandra/MUSIC.
 	 * @param sql the SQL statement that was executed
 	 */
 	@Override
-	public void postStatementHook(final String sql) {
+	public void postStatementHook(final String sql,Map<String,StagingTable> transactionDigests) {
 		if (sql != null) {
 			String[] parts = sql.trim().split(" ");
 			String cmd = parts[0].toLowerCase();
 			if ("delete".equals(cmd) || "insert".equals(cmd) || "update".equals(cmd)) {
-				synchronizeTables();
+				try {
+					updateStagingTable(transactionDigests);
+				} catch (NoSuchFieldException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 		}
 	}
-	
+
+	private OperationType toOpEnum(String operation) throws NoSuchFieldException {
+		switch (operation.toLowerCase()) {
+			case "insert":
+				return OperationType.INSERT;
+			case "delete":
+				return OperationType.DELETE;
+			case "update":
+				return OperationType.UPDATE;
+			case "select":
+				return OperationType.SELECT;
+			default:
+				logger.error(EELFLoggerDelegate.errorLogger,"Invalid operation selected: ["+operation+"]");
+				throw new NoSuchFieldException("Invalid operation enum");
+		}
+
+	}
 	/**
 	 * Copy data that is in transaction table into music interface
 	 * @param keysUpdated
+	 * @throws NoSuchFieldException 
 	 */
-	private void synchronizeTables() {
+	private void updateStagingTable(Map<String,StagingTable> transactionDigests) throws NoSuchFieldException {
 		// copy from DB.MDBC_TRANSLOG where connid == myconnid
 		// then delete from MDBC_TRANSLOG
-		
 		String sql2 = "SELECT IX, TABLENAME, OP, KEYDATA, NEWROWDATA FROM "+TRANS_TBL +" WHERE CONNECTION_ID = " + this.connId;
 		try {
 			ResultSet rs = executeSQLRead(sql2);
@@ -566,32 +548,38 @@ NEW.field refers to the new value
 			while (rs.next()) {
 				int ix      = rs.getInt("IX");
 				String op   = rs.getString("OP");
+				OperationType opType = toOpEnum(op);
 				String tbl  = rs.getString("TABLENAME");
-				@SuppressWarnings("unused")
-				String keys = rs.getString("KEYDATA");
-				JSONObject newRow = new JSONObject(new JSONTokener(rs.getString("NEWROWDATA")));
-				
-				if (!getTableInfo(tbl).hasKey()) {
-					String musicKey;
+				JSONObject keydata = new JSONObject(new JSONTokener(rs.getString("KEYDATA")));
+				JSONObject newRow  = new JSONObject(new JSONTokener(rs.getString("NEWROWDATA")));
+				String musicKey;
+				TableInfo ti = getTableInfo(tbl);
+				if (!ti.hasKey()) {
 					//create music key
 					if (op.startsWith("I")) {
-						musicKey = msm.generatePrimaryKey();
+						//\TODO Improve the generation of primary key, it should be generated using 
+						// the actual columns, otherwise performance when doing range queries are going 
+						// to be even worse (see the else bracket down)
+						musicKey = msm.generateUniqueKey();
 					} else {
 						//get key from data
-						JSONObject keydata = new JSONObject(new JSONTokener(rs.getString("KEYDATA")));
-						musicKey = msm.getMusicKeysFromRow(tbl, jsonToRow(tbl, keydata));
+						musicKey = msm.getMusicKeyFromRowWithoutPrimaryIndexes(tbl,newRow);
 					}
 					newRow.put(msm.getMusicDefaultPrimaryKeyName(), musicKey);
 				}
-				
-				Object[] row = jsonToRow(tbl, newRow);
-				// copy to cassandra
-				if (op.startsWith("D")) {
-					msm.deleteFromEntityTableInMusic(tbl, row);
-				} else {
-					//System.err.println("mysqlmixin: updateDirtyRow");
-					msm.updateDirtyRowAndEntityTableInMusic(tbl, row);
+				else {
+					//Use the keys 
+					musicKey = msm.getMusicKeyFromRow(tbl, newRow);
+					if(musicKey.isEmpty()) {
+						logger.error(EELFLoggerDelegate.errorLogger,"Primary key is invalid: ["+tbl+","+op+"]");
+						throw new NoSuchFieldException("Invalid operation enum");
+					}
 				}
+				
+				if(!transactionDigests.containsKey(tbl)) {
+					transactionDigests.put(tbl, new StagingTable());
+				}
+				transactionDigests.get(tbl).addOperation(musicKey, opType, keydata, newRow);
 				rows.add(ix);
 			}
 			rs.getStatement().close();
@@ -612,6 +600,70 @@ NEW.field refers to the new value
 		}
 	}
 
+	
+	
+	/**
+	 * Update music with data from MySQL table
+	 * 
+	 * @param tableName - name of table to update in music
+	 */
+	@Override
+	public void synchronizeData(String tableName) {
+		ResultSet rs = null;
+		TableInfo ti = getTableInfo(tableName);
+		String query = "SELECT * FROM "+tableName;
+		
+		try {
+			 rs = executeSQLRead(query);
+			 if(rs==null) return;
+			 while(rs.next()) {
+				 
+				JSONObject jo = new JSONObject();
+				if (!getTableInfo(tableName).hasKey()) {
+						String musicKey = msm.generateUniqueKey();
+						jo.put(msm.getMusicDefaultPrimaryKeyName(), musicKey);	
+				}
+					
+				for (String col : ti.columns) {
+						jo.put(col, rs.getString(col));
+				}
+					
+				@SuppressWarnings("unused")
+				Object[] row = Utils.jsonToRow(ti,tableName, jo,msm.getMusicDefaultPrimaryKeyName());
+				//\FIXME this is wrong now, update of the dirty row and entity is now handled by the archival process 
+				//msm.updateDirtyRowAndEntityTableInMusic(ti,tableName, jo);
+			 }
+		} catch (Exception e) {
+			logger.error(EELFLoggerDelegate.errorLogger, "synchronizing data " + tableName +
+								" -> " + e.getMessage());
+		}
+		finally {
+			try {
+				rs.close();
+			} catch (SQLException e) {
+				//continue
+			}
+		}
+		
+	}
+	
+	/**
+	 * Return a list of "reserved" names, that should not be used by MySQL client/MUSIC
+	 * These are reserved for mdbc
+	 */
+	@Override
+	public List<String> getReservedTblNames() {
+		ArrayList<String> rsvdTables = new ArrayList<String>();
+		rsvdTables.add(TRANS_TBL);
+		//Add others here as necessary
+		return rsvdTables;
+	}
+	@Override
+	public String getPrimaryKey(String sql, String tableName) {
+		// 
+		return null;
+	}
+	
 	@SuppressWarnings("unused")
 	@Deprecated
 	private ArrayList<String> getMusicKey(String sql) {
@@ -680,110 +732,48 @@ NEW.field refers to the new value
 		}
 		*/
 		return musicKeys;
-	}
+	}	
 	
-	private Object[] jsonToRow(String tbl, JSONObject jo) {
-		TableInfo ti = getTableInfo(tbl);
-		@SuppressWarnings("unused")
-		int columnSize = ti.columns.size();
-		ArrayList<Object> rv = new ArrayList<Object>();
-		if (jo.has(msm.getMusicDefaultPrimaryKeyName())) { rv.add(jo.getString(msm.getMusicDefaultPrimaryKeyName())); }
-		for (int i = 0; i < ti.columns.size(); i++) {
-			String colname = ti.columns.get(i);
-			switch (ti.coltype.get(i)) {
-			case Types.BIGINT:
-				rv.add(jo.optLong(colname, 0));
-				break;
-			case Types.BOOLEAN:
-				rv.add(jo.optBoolean(colname, false));
-				break;
-			case Types.BLOB:
-				rv.add(jo.optString(colname, ""));
-				break;
-			case Types.DECIMAL:
-				rv.add(jo.optBigDecimal(colname, BigDecimal.ZERO));
-				break;
-			case Types.DOUBLE:
-				rv.add(jo.optDouble(colname, 0));
-				break;
-			case Types.INTEGER:
-				rv.add(jo.optInt(colname, 0));
-				break;
-			case Types.TIMESTAMP:
-				//rv[i] = new Date(jo.optString(colname, ""));
-				rv.add(jo.optString(colname, ""));
-				break;
-			case Types.DATE:
-			case Types.VARCHAR:
-				//Fall through
-			default:
-				rv.add(jo.optString(colname, ""));
-				break;
-			}
-		}
-		return rv.toArray();
-	}
-	
-	
-	/**
-	 * Update music with data from MySQL table
-	 * 
-	 * @param tableName - name of table to update in music
-	 */
-	@Override
-	public void synchronizeData(String tableName) {
-		ResultSet rs = null;
+
+	@Deprecated
+	public void insertRowIntoSqlDbOLD(String tableName, Map<String, Object> map) {
+		// First construct the value string and column name string for the db write
 		TableInfo ti = getTableInfo(tableName);
-		String query = "SELECT * FROM "+tableName;
-		
-		try {
-			 rs = executeSQLRead(query);
-			 if(rs==null) return;
-			 while(rs.next()) {
-				 
-				JSONObject jo = new JSONObject();
-				if (!getTableInfo(tableName).hasKey()) {
-						String musicKey = msm.generatePrimaryKey();;
-						jo.put(msm.getMusicDefaultPrimaryKeyName(), musicKey);	
-				}
-					
-				for (String col : ti.columns) {
-						jo.put(col, rs.getString(col));
-				}
-					
-				Object[] row = jsonToRow(tableName, jo);
-				msm.updateDirtyRowAndEntityTableInMusic(tableName, row);
-			 }
-		} catch (Exception e) {
-			logger.error(EELFLoggerDelegate.errorLogger, "synchronizing data " + tableName +
-								" -> " + e.getMessage());
+		StringBuilder fields = new StringBuilder();
+		StringBuilder values = new StringBuilder();
+		String pfx = "";
+		for (String col : ti.columns) {
+			fields.append(pfx).append(col);
+			values.append(pfx).append(Utils.getStringValue(map.get(col)));
+			pfx = ", ";
 		}
-		finally {
+
+		try {
+			String sql = String.format("INSERT INTO %s (%s) VALUES (%s);", tableName, fields.toString(), values.toString());
+			executeSQLWrite(sql);
+		} catch (SQLException e) {
+			logger.error(EELFLoggerDelegate.errorLogger,"Insert failed because row exists, do an update");
+			StringBuilder where = new StringBuilder();
+			pfx = "";
+			String pfx2 = "";
+			fields.setLength(0);
+			for (int i = 0; i < ti.columns.size(); i++) {
+				String col = ti.columns.get(i);
+				String val = Utils.getStringValue(map.get(col));
+				if (ti.iskey.get(i)) {
+					where.append(pfx).append(col).append("=").append(val);
+					pfx = " AND ";
+				} else {
+					fields.append(pfx2).append(col).append("=").append(val);
+					pfx2 = ", ";
+				}
+			}
+			String sql = String.format("UPDATE %s SET %s WHERE %s", tableName, fields.toString(), where.toString());
 			try {
-				rs.close();
-			} catch (SQLException e) {
-				//continue
+				executeSQLWrite(sql);
+			} catch (SQLException e1) {
+				logger.error(EELFLoggerDelegate.errorLogger,"executeSQLWrite"+e1);
 			}
 		}
-		
 	}
-	
-	/**
-	 * Return a list of "reserved" names, that should not be used by MySQL client/MUSIC
-	 * These are reserved for mdbc
-	 */
-	@Override
-	public List<String> getReservedTblNames() {
-		ArrayList<String> rsvdTables = new ArrayList<String>();
-		rsvdTables.add(TRANS_TBL);
-		//Add others here as necessary
-		return rsvdTables;
-	}
-	@Override
-	public String getPrimaryKey(String sql, String tableName) {
-		// 
-		return null;
-	}
-	
-	
 }
