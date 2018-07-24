@@ -112,7 +112,7 @@ final class CommitProgress{
 	boolean MusicDone; // indicates if music commit was already performed, atomic bool
 	Connection connection;// reference to a connection object. This is used to complete a commit if it failed in the original thread.
 	long timestamp; // last time this data structure was updated
-	Map<String,RedoRecordId> redoRecordIds;// record id for each partition
+	RedoRecordId redoRecordId;// record id for each partition
 
 	public CommitProgress(String id,Connection conn){
 		redoRecordIds=new HashMap<>();

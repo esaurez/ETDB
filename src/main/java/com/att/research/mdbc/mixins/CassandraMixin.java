@@ -1045,7 +1045,7 @@ public class CassandraMixin implements MusicInterface {
 			table.append(Integer.toString(redoTableNumber));
 			tableName=table.toString();
 		}
-		String priKey = "leaseid,counter";
+		String priKey = "leaseid,leasecounter";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("leaseid text, ");
 		fields.append("leasecounter bigint, ");
