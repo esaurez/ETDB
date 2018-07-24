@@ -147,7 +147,7 @@ As shown in [figure 1](#figure-1). The MDBC server is composed of the following 
 ### Figure 1
 ![Server Architecture](uml.svg "MDBC Server UML")
 
-**Fig 1: Server Architecture**
+**Server Architecture**
 
 ### RunningQueries
 This is an in-memory data structure that contains the progress of each transaction being executed. Each transaction holds information about:
@@ -193,7 +193,7 @@ This interface the main operations that the MusicSQLMAnager performs with the SQ
 ### Figure 2
 ![REDO Architecture](redo_arch.svg "REDO Spec UML")
 
-**Fig 2: Redo Spec Architecture**
+**Redo Spec Architecture**
 
 ### REDO History
 
@@ -202,7 +202,7 @@ Given that new Redo log rows are created in TIT each time, the system is reparti
 #### Figure 3 
 ![REDO History Directed Graph](histo_graph.svg "REDO History Directed Graph")
 
-**Fig 3: Redo History Directed Graph**
+**Redo History Directed Graph**
 
 #### Properties
 
