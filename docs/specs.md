@@ -27,7 +27,7 @@ This is a type of table, and there can be many instances of this table in Music.
     - The id of the partition associated with this transaction 
 * **LatestApplied**: Int 
     - Integer associated with the latest RedoRecord applied from the Redo column into the data tables in Music. 
-* **Applied**: Boolean 
+* **Applied**: boolean 
     - Flag that indicates that this row Tx's were already committed to the data tables 
 
 #### Primary
@@ -248,7 +248,7 @@ This is the logic within the redo manager. It is created to allow extension of t
 void init(HistoryGraph history);
 List<Task> getInitialTasks();
 List<Task> setCompleted(Task completedTask);
-Boolean isDone();
+boolean isDone();
 ```
 
 ### PrefetchedData
@@ -309,8 +309,8 @@ void AddOps(List<Task> tasks) {
     
 });
 Task GetNextTask();
-Boolean freezeBelowLevel(PriorityLevel prio);// This function is only used when the memory is overprovisioned, and we don't want to allow more tasks of type 1 and 2 but is left generic, for future use
-Boolean restart();// To be used after a freeze was applied
+boolean freezeBelowLevel(PriorityLevel prio);// This function is only used when the memory is overprovisioned, and we don't want to allow more tasks of type 1 and 2 but is left generic, for future use
+boolean restart();// To be used after a freeze was applied
 ```
 
 ### ThreadPool
