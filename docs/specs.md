@@ -197,7 +197,7 @@ Figure 2 shows the main components used to recover using the REDO log. First, we
 
 Given that new Redo log rows are created in TIT each time, the system is repartitioned, then a history is created as shown in figure 3. Each node represents a give TIT row, and the graph is a directed acyclic graph. 
 
-![REDO History Directed Graph](histo_graph.png "REDO History Directed Graph")
+![REDO History Directed Graph](histo_graph.svg "REDO History Directed Graph")
 
 **Fig 3: Redo History Directed Graph**
 
