@@ -78,10 +78,12 @@ public class CassandraMixin implements MusicInterface {
 	/** Namespace for the tables in MUSIC (Cassandra) */
 	public static final String MUSIC_NAMESPACE = "namespace";
 	
+	/** Name of the tables required for MDBC */
 	public static final String REDO_RECORD_TABLE_NAME = "RedoRecords";
 	public static final String TRANSACTION_INFORMATION_TABLE_NAME = "TransactionInformation";
-	public static final String RANGE_INFORMATION_TABLE_NAME = "RangeInformation";
-	public static final String LATEST_REDO_ID_TABLE_NAME = "LatestRedoId";
+	public static final String TABLE_TO_PARTITION_TABLE_NAME = "TableToPartition";
+	public static final String PARTITION_INFORMATION_TABLE_NAME = "PartitionInfo";
+	public static final String REDO_HISTORY_TABLE_NAME= "RedoHistory";
 
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(CassandraMixin.class);
 	
@@ -976,62 +978,31 @@ public class CassandraMixin implements MusicInterface {
 	}
 
 	/**
-	 * This function creates the RangeInformation table. It is a two level index to
-	 * obtain the location of the transaction data structure for a given range of keys. 
-	 * The first level contain statically assigned ranges of the same size (e.g. [a-m],[n-null])
-	 * that allow to find the subranges that are created dynamically underneath.
-	 * The schema of the table is
-	 * 		* LowerKey: lower bound of the first-level range (included), text
-			* UpperKey: upper bound of the first-level range (excluded), text
-			* Ranges: array of the sub-ranges, set. Each range is composed of a tuple with components:
-				* LowerKey: lower bound of the second-level range, text
-				* UpperKey: upper bound of the second-level range, text
-				* RangeTxId: id into the TransactionInformation table, uuid
-	*/
-	private void CreateRangeInformationTable() {
-		String tableName = RANGE_INFORMATION_TABLE_NAME;
-		String priKey = "lowerkey";
-		StringBuilder fields = new StringBuilder(); 
-		fields.append("lowerkey text, ");
-		fields.append("upperkey text, ");
-		fields.append("ranges set<tuple<text,text,uuid>> ");
-		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
-		executeMusicWriteQuery(cql);
-	}
-
-	/**
 	 * This function creates the TransactionInformation table. It contain information related
-	 * to the transactions happening in a given range of keys. It is associated with the second 
-	 * level subranges in the RangeInformation table. 
-	 * The schema of the table is
-	 * 		* Id, uiid. This is used as a "foreign key" in the range information table.
-	 * 		* LowerKey: lower bound of the range (included), text
-	 *		* UpperKey: upper bound of the range (excluded), text
-	 *		* RedoLogtableName: name of the redo table where the transactions are stored, text
-	 *		* Transactions: list of uiids associated to the redologtable
+	 * to the transactions happening in a given partition. 
+	 * 	 * The schema of the table is
+	 * 		* Id, uiid. 
+	 * 		* Partition, uuid id of the partition
+	 * 		* LatestApplied, int indicates which values from the redologtable wast the last to be applied to the data tables 
+	 *		* Applied: boolean, indicates if all the values in this redo log table where already applied to data tables 
+	 *		* Redo: list of uiids associated to the Redo Records Table 
 	 *
-	 * \TODO there are big issues with using lists in Cassandra because it needs to fetch it as a whole.
-	 * 		 Later we may need to restructure this list into either a completely different table, or just
-	 * 		 split the row into multiple rows, with only the last row updatable and the other ones delete-read only
 	 */
 	private void CreateTransactionInformationTable() {
 		String tableName = TRANSACTION_INFORMATION_TABLE_NAME;
 		String priKey = "id";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("id uuid, ");
-		//TODO see how to improve this part of the table, it should contain information about the ranges being contained 
-		//HINT: it could contain just an index to another table. This shouldn't be used frequently?
-		fields.append("lowerkeys set<text>, ");//composed of table.lowerkey
-		fields.append("upperkey set<text>, ");//composed of table.upperkey
-		//---End of TODO --
-		fields.append("redologtable text, ");
-		fields.append("transactions list<tuple<text,text>> ");//\TODO check if text is the right type, see CreateRedoLogTable function
+		fields.append("partition uuid, ");
+		fields.append("latestapplied int, ");
+		fields.append("applied boolean, ");
+		fields.append("redo list<tuple<text,uuid>> ");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
 	}
 
 	/**
-	 * This function creates the RedoLog table. It contain information related to 
+	 * This function creates the RedoRecords table. It contain information related to each transaction committed 
 	 * 	* LeaseId: id associated with the lease, text
 	 * 	* LeaseCounter: transaction number under this lease, bigint \TODO this may need to be a varint later 
 	 *  * TransactionDigest: text that contains all the changes in the transaction
@@ -1054,25 +1025,58 @@ public class CassandraMixin implements MusicInterface {
 		executeMusicWriteQuery(cql);
 	}
 
-	private void CreateLatestRedoIdTable() {
-		String tableName = LATEST_REDO_ID_TABLE_NAME;
-		String priKey = "TxInfoId";
+	/**
+	 * This function creates the Table To Partition table. It contain information related to 
+	 * 	* LeaseId: id associated with the lease, text
+	 * 	* LeaseCounter: transaction number under this lease, bigint \TODO this may need to be a varint later 
+	 *  * TransactionDigest: text that contains all the changes in the transaction
+	 */
+	protected void CreateTableToPartitionTable() {
+		String tableName = TABLE_TO_PARTITION_TABLE_NAME ;
+		String priKey = "table";
 		StringBuilder fields = new StringBuilder(); 
-		fields.append("txinfoid uiid, ");
-		fields.append("leaseid text, ");
-		fields.append("leasecounter bigint, ");
+		fields.append("table text, ");
+		fields.append("partition uuid, ");
+		fields.append("previouspartitions set<uuid> ");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
 	}
-	
+
+	protected void CreatePartitionInfoTable() {
+		String tableName = PARTITION_INFORMATION_TABLE_NAME;
+		String priKey = "partition";
+		StringBuilder fields = new StringBuilder(); 
+		fields.append("partition uuid, ");
+		fields.append("latesttittable text, ");
+		fields.append("latesttitindex uuid, ");
+		fields.append("tables set<text>, ");
+		fields.append("replicationfactor int, ");
+		fields.append("currentowner text");
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	protected void CreateRedoHistoryTable() {
+		String tableName = REDO_HISTORY_TABLE_NAME;
+		String priKey = "partition,(redotable,redoindex)";
+		StringBuilder fields = new StringBuilder(); 
+		fields.append("partition uuid, ");
+		fields.append("redotable text, ");
+		fields.append("redoindex uuid, ");
+		fields.append("previousredo set<tuple<text,uuid>>");
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
 	/**
 	 * This function created all the required tables in Music related to the REDO-log  table 
 	 */
 	public void createMdbcDataStructures() {
 		CreateRedoRecordsTable(-1);//\TODO If we start partitioning the data base, we would need to use the redotable number
 		CreateTransactionInformationTable();
-		CreateRangeInformationTable();
-		CreateLatestRedoIdTable();
+		CreateTableToPartitionTable();
+		CreatePartitionInfoTable();
+		CreateRedoHistoryTable();
 	}
 
 	@Override
