@@ -116,7 +116,7 @@ None
 
 ### RedoHistory Table (RH)
 
-This table represents the Directed Graph that forms the history of REDO logs. Given that we create new REDO logs on each new repartition (or due to other reasons), we need to keep track of the changes and the order of the REDO logs. An example of the repartitions can be seen in [figure 3](#fig:3).
+This table represents the Directed Graph that forms the history of REDO logs. Given that we create new REDO logs on each new repartition (or due to other reasons), we need to keep track of the changes and the order of the REDO logs. An example of the repartitions can be seen in [figure 3](#figure-3).
 
 #### Columns
 * **Partition**: Text
@@ -136,7 +136,7 @@ This table represents the Directed Graph that forms the history of REDO logs. Gi
 
 ## Server Architecture
 
-As shown in figure 1. The MDBC server is composed of the following components:
+As shown in [figure 1](#figure-1). The MDBC server is composed of the following components:
 
 * **RunningQueries**
 * **LocalStagingTable**
@@ -144,6 +144,7 @@ As shown in figure 1. The MDBC server is composed of the following components:
 * **MusicSQLManager**
 * **SQL**
 
+### Figure 1
 ![Server Architecture](uml.svg "MDBC Server UML")
 
 **Fig 1: Server Architecture**
@@ -187,16 +188,18 @@ This interface the main operations that the MusicSQLMAnager performs with the SQ
 
 ## REDO Recovery Architecture
 
-Figure 2 shows the main components used to recover using the REDO log. First, we are going to analyze what is the REDO history associated with a given node, and then describe each of the components in figure 2 
+[Figure 2](#figure-2) shows the main components used to recover using the REDO log. First, we are going to analyze what is the REDO history associated with a given node, and then describe each of the components in figure 2 
 
+### Figure 2
 ![REDO Architecture](redo_arch.svg "REDO Spec UML")
 
 **Fig 2: Redo Spec Architecture**
 
 ### REDO History
 
-Given that new Redo log rows are created in TIT each time, the system is repartitioned, then a history is created as shown in figure 3. Each node represents a give TIT row, and the graph is a directed acyclic graph. 
+Given that new Redo log rows are created in TIT each time, the system is repartitioned, then a history is created as shown in [figure 3](#figure-3). Each node represents a give TIT row, and the graph is a directed acyclic graph. 
 
+#### Figure 3 
 ![REDO History Directed Graph](histo_graph.svg "REDO History Directed Graph")
 
 **Fig 3: Redo History Directed Graph**
@@ -253,7 +256,7 @@ boolean isDone();
 
 ### PrefetchedData
 
-This is going to contain the results of tasks of type 1. and 2. If the recovery algorithm overprovisioned memory, the RedoManager can request to delete the least important data (further to the right in figure 3), and it would return the task that was used to generate it. Such that it can be read to the TaskPriorityQueue
+This is going to contain the results of tasks of type 1. and 2. If the recovery algorithm overprovisioned memory, the RedoManager can request to delete the least important data (further to the right in [figure 3](#figure-3)), and it would return the task that was used to generate it. Such that it can be read to the TaskPriorityQueue
 
 
 #### Interface
