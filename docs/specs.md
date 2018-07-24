@@ -119,7 +119,7 @@ None
 This table represents the Directed Graph that forms the history of REDO logs. Given that we create new REDO logs on each new repartition (or due to other reasons), we need to keep track of the changes and the order of the REDO logs. An example of the repartitions can be seen in [figure 3](#figure-3).
 
 #### Columns
-* **Partition**: Text
+* **Partition**: uuid 
 	- Partition 
 * **RedoTable**:Text
 	- TIT table at this point in time for the Partition
