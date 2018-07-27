@@ -8,6 +8,7 @@ import org.json.JSONObject;
 
 import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.mdbc.DatabasePartition;
+import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
 
 /**
@@ -130,6 +131,7 @@ public interface MusicInterface {
 	 * @return primary key of the row
 	 */
 	String getMusicKeyFromRow(TableInfo ti, String tableName, JSONObject changedRow);
+
 	/**
 	 * Initializes all MDBC tables and associated data structures
 	 * This needs to be called when starting the music interface 
@@ -139,10 +141,41 @@ public interface MusicInterface {
 	/**
 	 * Commits the corresponding REDO-log into MUSIC 
 	 * @param dbi, the database interface use in the local SQL cache, where the music interface is being used
-	 * @param transactionDigest digest of the transaction that is being commited into the redo log in music. It has to be a HashMap, because it is required to be serializable
+	 * @param transactionDigest digest of the transaction that is being committed into the Redo log in music. It has to be a HashMap, because it is required to be serializable
 	 * @param commitId id associated with the log being send
-	 * \TODO Improve this interface, it is too polluted, for example the dbi and the progressKeeper may be pushed outside.
+	 * @param progressKeeper data structure that is used to handle to detect failures, and know what to do 
+	 * @throws MDBCServiceException
 	 */
-	void commitLog(DBInterface dbi, HashMap<String,StagingTable> transactionDigest, DatabasePartition.Range partition, String commitId,TxCommitProgress progressKeeper) throws MDBCServiceException;
+	void commitLog(DBInterface dbi, DatabasePartition partition, HashMap<Range,StagingTable> transactionDigest, String txId,TxCommitProgress progressKeeper) throws MDBCServiceException;
+	
+	TransactionInformationElement getTransactionInformation(String id);
+
+	TitReference createTransactionInformationRow(TransactionInformationElement info);
+	
+	void appendToRedoLog(TitReference titRow, DatabasePartition partition, RedoRecordId newRecord);
+	
+	void appendRedoRecord(String redoRecordTable, RedoRecordId newRecord, String transactionDigest); 
+
+	void updateTablePartition(String table, DatabasePartition partition);
+	
+	TitReference createPartition(List<String> tables, int replicationFactor, String currentOwner);
+	
+	void updatePartitionOwner(String partition, String owner);
+
+	void updateTitReference(String partition, TitReference tit);
+	
+	void updatePartitionReplicationFactor(String partition, int replicationFactor);
+	
+	void addRedoHistory(DatabasePartition partition, TitReference newTit, List<TitReference> old);
+	
+	List<RedoHistoryElement> getHistory(DatabasePartition partition);
+
+	List<PartitionInformation> getPartitionInformation(DatabasePartition partition);
+	
+	TablePartitionInformation getTablePartitionInformation(String table);
+	
+	HashMap<Range,StagingTable> getTransactionDigest(RedoRecordId id);
+	
+
 }
 

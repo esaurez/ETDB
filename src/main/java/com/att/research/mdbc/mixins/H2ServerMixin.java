@@ -18,6 +18,7 @@ import org.json.JSONTokener;
 
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.MusicSqlManager;
+import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
 
 /**
@@ -137,7 +138,7 @@ public class H2ServerMixin extends H2Mixin {
 	 * @param sql the SQL statement that was executed
 	 */
 	@Override
-	public void postStatementHook(final String sql, Map<String,StagingTable> transactionDigest) {
+	public void postStatementHook(final String sql, Map<Range,StagingTable> transactionDigest) {
 		if (sql != null) {
 			String[] parts = sql.trim().split(" ");
 			String cmd = parts[0].toLowerCase();

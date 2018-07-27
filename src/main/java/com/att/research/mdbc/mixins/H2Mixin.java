@@ -14,6 +14,7 @@ import java.util.TreeSet;
 
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.MusicSqlManager;
+import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
 
 /**
@@ -312,7 +313,7 @@ public class H2Mixin implements DBInterface {
 	 * @param sql the SQL statement that was executed
 	 */
 	@Override
-	public void postStatementHook(final String sql,Map<String,StagingTable> transactionDigest) {
+	public void postStatementHook(final String sql,Map<Range,StagingTable> transactionDigest) {
 		// do nothing
 	}
 	@Override

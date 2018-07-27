@@ -5,15 +5,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.json.JSONObject;
 
-import com.att.research.mdbc.DatabasePartition.Range;
 import com.att.research.mdbc.mixins.DBInterface;
 import com.att.research.mdbc.mixins.MixinFactory;
 import com.att.research.mdbc.mixins.MusicInterface;
@@ -50,7 +46,7 @@ public class MusicSqlManager {
 	private final DBInterface dbi;
 	private final MusicInterface mi;
 	private final Set<String> table_set;
-	private final Map<String,StagingTable> transactionDigest;
+	private final HashMap<Range,StagingTable> transactionDigest;
 	private boolean autocommit;			// a copy of the autocommit flag from the JDBC Connection
 
 	/**
@@ -76,24 +72,24 @@ public class MusicSqlManager {
 			this.mi = mi;
 			this.table_set = Collections.synchronizedSet(new HashSet<String>());
 			this.autocommit = true;
-			this.transactionDigest = new HashMap<String,StagingTable>();
+			this.transactionDigest = new HashMap<Range,StagingTable>();
 
 		}catch(Exception e) {
 			throw new MDBCServiceException(e.getMessage());
 		}
 	}
 
-	public void setAutoCommit(boolean b, String commitId, TxCommitProgress progressKeeper) throws MDBCServiceException {
+	public void setAutoCommit(boolean b,String txId, TxCommitProgress progressKeeper, DatabasePartition partition) throws MDBCServiceException {
 		if (b != autocommit) {
 			autocommit = b;
 			logger.info(EELFLoggerDelegate.applicationLogger,"autocommit changed to "+b);
 			if (b) {
 				// My reading is that turning autoCOmmit ON should automatically commit any outstanding transaction
-				if(commitId == null) {
+				if(txId == null || txId.isEmpty()) {
 					logger.error(EELFLoggerDelegate.errorLogger, "Connection ID is null",AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
-					throw new MDBCServiceException("connection id is null");
+					throw new MDBCServiceException("tx id is null");
 				}
-				commit(commitId,progressKeeper);
+				commit(txId,progressKeeper,partition);
 			}
 		}
 	}
@@ -212,32 +208,15 @@ public class MusicSqlManager {
 	 * they are performed now and copied into MUSIC.
 	 * @throws MDBCServiceException 
 	 */
-	public synchronized void commit(String commitId,TxCommitProgress progressKeeper) throws MDBCServiceException {
+	public synchronized void commit(String txId, TxCommitProgress progressKeeper, DatabasePartition partition) throws MDBCServiceException {
 		logger.info(EELFLoggerDelegate.applicationLogger, " commit ");
 		// transaction was committed -- add all the updates into the REDO-Log in MUSIC
 		try {
-			List<Pair<DatabasePartition.Range,HashMap<String,StagingTable>>> stagingTablesPerRange= separateStagingTable();
-			//\TODO: Analyze if it is worth to parallelize this process
-			// Each range is completely independent
-			for(Pair<Range, HashMap<String, StagingTable>> stagingTableWithPartition : stagingTablesPerRange) {
-				mi.commitLog(dbi,stagingTableWithPartition.getRight(),stagingTableWithPartition.getLeft(),commitId,progressKeeper);
-			}
+			mi.commitLog(dbi, partition, transactionDigest, txId, progressKeeper);
 		}catch(MDBCServiceException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw e;
 		}
-	}
-
-	/**
-	 * This function separate the current staging table into multiple staging table
-	 * Each staging table in the list should be within one partition
-	 * \TODO how to guarantee that a partition is not going to happen while execution
-	 * HINT: Make sure you own the locks before even trying to commit
-	 * @return list of staging tables
-	 */
-	private List<Pair<DatabasePartition.Range,HashMap<String, StagingTable>>> separateStagingTable() {
-		//\FIXME implement this function
-		throw new UnsupportedOperationException("Separate Staging Table has to be implemented");
 	}
 
 	/**

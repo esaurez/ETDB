@@ -87,7 +87,7 @@ public class MdbcStateManager implements StateManager{
 		}
 		//Create MDBC connection
     	try {
-			newConnection = new MdbcConnection(id, url, sqlConnection, info, this.musicManager, transactionInfo);
+			newConnection = new MdbcConnection(id, url, sqlConnection, info, this.musicManager, transactionInfo,ranges);
 		} catch (MDBCServiceException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
 			newConnection = null;

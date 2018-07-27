@@ -28,6 +28,7 @@ import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.DatabasePartition;
 import com.att.research.mdbc.MDBCUtils;
+import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.ColumnDefinitions;
@@ -1080,7 +1081,7 @@ public class CassandraMixin implements MusicInterface {
 	}
 
 	@Override
-	public void commitLog(DBInterface dbi, HashMap<String, StagingTable> transactionDigest, DatabasePartition.Range partition, String commitId,TxCommitProgress progressKeeper) throws MDBCServiceException{
+	public void commitLog(DBInterface dbi, DatabasePartition partition, HashMap<Range,StagingTable> transactionDigest, String txId ,TxCommitProgress progressKeeper) throws MDBCServiceException{
 		String TITIndex = partition.getTransactionInformationIndex();
 		if(TITIndex.isEmpty()) {
 			//\TODO Fetch TITIndex from the Range Information Table 
@@ -1098,14 +1099,18 @@ public class CassandraMixin implements MusicInterface {
 			//TODO: Java newbie here, verify that this lockId is actually assigned to the global DatabasePartition in the StateManager instance
 			partition.setLockId(lockId);
 		}
+
+		//Generate a local commit id
+		String commitId = Long.toString(progressKeeper.getCommitId(txId));
+
 		//1. Push new row to RRT and obtain its index
 		PreparedQueryObject query = new PreparedQueryObject();
 	    StringBuilder cqlQuery = new StringBuilder("INSERT INTO ")
 	    	      .append(REDO_RECORD_TABLE_NAME)
-	    	      .append("(leaseid,leasecounter,transactionlog) ")
+	    	      .append("(leaseid,leasecounter,transactiondigest) ")
 	    	      .append("VALUES (")
 	    	      .append( lockId ).append(",")
-	    	      .append( partition.partitionId+"-"+commitId).append(",")
+	    	      .append( commitId ).append(",")
 	    	      .append( MDBCUtils.toString(transactionDigest) )
 	    	      .append("');");
 	    query.appendQueryString(cqlQuery.toString());
@@ -1113,9 +1118,9 @@ public class CassandraMixin implements MusicInterface {
 		MusicCore.nonKeyRelatedPut(query,"critical");
 		//2. Save RRT index to RQ
 		if(progressKeeper!= null) {
-		
+			progressKeeper.setRecordId(txId,new RedoRecordId(lockId, commitId));
 		}
-		//4. Append RRT index into the corresponding TIT row arr
+		//3. Append RRT index into the corresponding TIT row array
 		yada
 	}
 	

@@ -19,6 +19,7 @@ import org.json.JSONTokener;
 
 import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.MusicSqlManager;
+import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
 
 import net.sf.jsqlparser.JSQLParserException;
@@ -502,13 +503,13 @@ NEW.field refers to the new value
 	 * @param sql the SQL statement that was executed
 	 */
 	@Override
-	public void postStatementHook(final String sql,Map<String,StagingTable> transactionDigests) {
+	public void postStatementHook(final String sql,Map<Range,StagingTable> transactionDigest) {
 		if (sql != null) {
 			String[] parts = sql.trim().split(" ");
 			String cmd = parts[0].toLowerCase();
 			if ("delete".equals(cmd) || "insert".equals(cmd) || "update".equals(cmd)) {
 				try {
-					updateStagingTable(transactionDigests);
+					this.updateStagingTable(transactionDigest);
 				} catch (NoSuchFieldException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -538,7 +539,7 @@ NEW.field refers to the new value
 	 * @param keysUpdated
 	 * @throws NoSuchFieldException 
 	 */
-	private void updateStagingTable(Map<String,StagingTable> transactionDigests) throws NoSuchFieldException {
+	private void updateStagingTable(Map<Range,StagingTable> transactionDigests) throws NoSuchFieldException {
 		// copy from DB.MDBC_TRANSLOG where connid == myconnid
 		// then delete from MDBC_TRANSLOG
 		String sql2 = "SELECT IX, TABLENAME, OP, KEYDATA, NEWROWDATA FROM "+TRANS_TBL +" WHERE CONNECTION_ID = " + this.connId;
@@ -575,11 +576,11 @@ NEW.field refers to the new value
 						throw new NoSuchFieldException("Invalid operation enum");
 					}
 				}
-				
-				if(!transactionDigests.containsKey(tbl)) {
-					transactionDigests.put(tbl, new StagingTable());
+				Range range = new Range(tbl);
+				if(!transactionDigests.containsKey(range)) {
+					transactionDigests.put(range, new StagingTable());
 				}
-				transactionDigests.get(tbl).addOperation(musicKey, opType, keydata, newRow);
+				transactionDigests.get(range).addOperation(musicKey, opType, keydata, newRow);
 				rows.add(ix);
 			}
 			rs.getStatement().close();

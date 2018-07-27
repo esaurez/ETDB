@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
 
 /**
@@ -73,7 +74,7 @@ public interface DBInterface {
 	 * @param sql the SQL statement that was executed
 	 * @param keys that were updated in the sql call
 	 */
-	public void postStatementHook(final String sql,Map<String,StagingTable> transactionDigest);
+	public void postStatementHook(final String sql,Map<Range,StagingTable> transactionDigest);
 	/**
 	 * This method executes a read query in the SQL database.  Methods that call this method should be sure
 	 * to call resultset.getStatement().close() when done in order to free up resources.

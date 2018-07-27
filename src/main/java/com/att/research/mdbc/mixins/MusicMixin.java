@@ -16,6 +16,7 @@ import org.onap.music.main.MusicCore;
 
 import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.mdbc.DatabasePartition;
+import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
 
 /**
@@ -190,9 +191,8 @@ public static List<String> criticalTables = new ArrayList<>();
 	}
 
 	@Override
-	public void commitLog(DBInterface dbi, HashMap<String, StagingTable> transactionDigest, DatabasePartition.Range partition, String commitId)
-			throws MDBCServiceException {
+	public void commitLog(DBInterface dbi, DatabasePartition partition, HashMap<Range,StagingTable> transactionDigest, String txId,TxCommitProgress progressKeeper) 
+			throws MDBCServiceException{
 		// TODO Auto-generated method stub
-		
 	}
 }
