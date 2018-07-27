@@ -1,26 +1,24 @@
-MDBC
+ETDB
 ====
 
-This is MDBC, the Music DataBase Connector.  It allows an application to use normal SQL
-syntax and semantics, while simultaneously copying all changed rows to/from MUSIC.
-It is implemented as a Java JDBC driver.
+To enable edge computing in its full capacity, a crucial requirement is to manage the state of edge applications, preferably in database that provides the full features of SQL including joins and transactions. The key challenge here is to provide a replicated database for the edge that can scale to thousands of geo-distributed nodes. Existing solutions either provide semantics that are too weak (PostgreSQL replicates asynchronously) or too strong and hence expensive to realize in a geo-distributed network with its WAN latencies and complex failure modes (MariaDb, Spanner, provide full transactionality). Inspired by entry consistency in shared memory systems, wherein only the lock holder for an object obtains sequential consistency for the object, we define the notion of an entry transactional database, which is a novel partitioned database in which only the “owner” of a partition obtains full ACID transactionality. In this work, we define the semantics of an entry transactional database, describe the hard challenges faced in building it and present a novel middleware called mdbc that combines existing SQL databases with an underlying  geo-distributed entry consistent store to provide entry transactional semantics. Further, we present crucial use cases such as a federated regional controller for the network control plane and a state management service for edge mobility enabled by entry transactionality. 
 
-## Building MDBC
+## Building ETDB
 
-MDBC is built with Maven.  This directory contains two pom.xml files.
+ETDB is built with Maven.  This directory contains two pom.xml files.
 The first (*pom.xml*) will build a jar file to be used by applications wishing to use the
-MDBC JDBC driver.
+ETDB JDBC driver.
 The second (*pom-h2server.xml*) is used to built the special code that needs to be loaded
-into an H2 server, when running MDBC against a copy of H2 running as a server.
+into an H2 server, when running ETDB against a copy of H2 running as a server.
 
-### Building the JBoss MDBC Module
+### Building the JBoss ETDB Module
 
 There is a shell script (located in `src/main/shell/mk_jboss_module`) which, when run in
 the mdbc source directory, will create a tar file `target/mdbc-jboss-module.tar` which can
 be used as a JBoss module.  This tar file should be installed by un-taring it in the
 $JBOSS_DIR/modules directory on the JBoss server.
 
-## Using MDBC
+## Using ETDB
 
 This package provides a JDBC driver that can be used to mirror the contents of a database
 to and from Cassandra. The mirroring occurs as a side effect of execute() statements against
@@ -44,7 +42,7 @@ Dirty rows will be copied, as needed back into the database from Cassandra befor
         Class.forName("com.att.research.mdbc.ProxyDriver");
 
 The following properties can be passed to the JDBC DriverManager.getConnection(String, Properties)
-call to influence how MDBC works.
+call to influence how ETDB works.
 
 | Property Name	     | Property Value	                                                              | Default Value |
 |--------------------|--------------------------------------------------------------------------------|---------------|
@@ -52,7 +50,7 @@ call to influence how MDBC works.
 | MDBC\_MUSIC\_MIXIN | The mixin name to use to select the MUSIC mixin to use for this connection.    | cassandra2    |
 | myid	             | The ID of this replica in the collection of replicas sharing the same tables.  | 0             |
 | replicas           | A comma-separated list of replica names for the collection of replicas sharing the same tables. | the value of myid |
-| music\_keyspace    | The keyspace name to use in Cassandra for all tables created by this instance of MDBC. | mdbc  |
+| music\_keyspace    | The keyspace name to use in Cassandra for all tables created by this instance of ETDB. | mdbc  |
 | music\_address     | The IP address to use to connect to Cassandra.	                              | localhost     |
 | music\_rfactor     | The replication factor to use for the new keyspace that is created.	          | 2            	 |
 | disabled	         | If set to true the mirroring is completely disabled; this is the equivalent of using the database driver directly. | false |
@@ -120,7 +118,7 @@ probably need to make changes to the _connectionProperties_ attribute.
 
 ## Databases Supported
 
-Currently, the following databases are supported with MDBC:
+Currently, the following databases are supported with ETDB:
 
 * H2: The `H2Mixin` mixin is used when H2 is used with an in-memory (`jdbc:h2:mem:...`)
 or local file based (`jdbc:h2:path_to_file`) database.
@@ -133,29 +131,29 @@ or local file based (`jdbc:h2:path_to_file`) database.
 
 ## Testing Mixin Combinations
 
-The files under `src/main/java/com/att/research/mdbc/tests` can be used to test various MDBC
+The files under `src/main/java/com/att/research/mdbc/tests` can be used to test various ETDB
 operations with various combinations of Mixins.  The tests are controlled via the file
 `src/main/resources/tests.json`.  More details are available in the javadoc for this package.
 
-## Limitations of MDBC
+## Limitations of ETDB
 
-* The `java.sql.Statement.executeBatch()` method is not supported by MDBC.
+* The `java.sql.Statement.executeBatch()` method is not supported by ETDB.
 It is not prohibited either; if you use this, your results will be unpredictable (and probably wrong).
 
 * When used with a DB server, there is some delay as dirty row information is copied
 from a table in the database, to the dirty table in Cassandra.  This opens a window
 during which all sorts of mischief may occur.
 
-* MDBC *only* copies the results of SELECTs, INSERTs, DELETEs, and UPDATEs.  Other database
-operations must be performed outside of the purview of MDBC.  In particular, CREATE-ing or
+* ETDB *only* copies the results of SELECTs, INSERTs, DELETEs, and UPDATEs.  Other database
+operations must be performed outside of the purview of ETDB.  In particular, CREATE-ing or
 DROP-ing tables or databases must be done individually on each database instance.
 
 * Some of the table definitions may need adjusting depending upon the variables of your use
-of MDBC.  For example, the MySQL mixin assumes (in its definition of the MDBC_TRANSLOG table)
+of ETDB.  For example, the MySQL mixin assumes (in its definition of the ETDB_TRANSLOG table)
 that all table names will be no more than 255 bytes, and that tables rows (expressed in JSON)
 will be no longer than 512 bytes. If this is not true, you should adjust, edit, and recompile.
 
-* MDBC is limited to only data types that can be easily translated to a Cassandra equivalent;
+* ETDB is limited to only data types that can be easily translated to a Cassandra equivalent;
 e.g. BIGINT, BOOLEAN, BLOB, DOUBLE, INT, TIMESTAMP, VARCHAR
 
 * To find the data types that your database is currently using run the following command:
