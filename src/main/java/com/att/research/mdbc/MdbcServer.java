@@ -41,13 +41,13 @@ public class MdbcServer {
       description = "JDBC driver url for the server")
   private String url;
 
-  @Parameter(names = { "-p", "--port" }, required = false,
+  @Parameter(names = { "-p", "--port" }, required = true,
       description = "Port the server should bind")
-  private int port = 0;
+  private int port;
 
   final private Serialization serialization = Serialization.PROTOBUF;
 
-  @Parameter(names = { "-h", "-help", "--help" }, required = false, help = true,
+  @Parameter(names = { "-h", "-help", "--help" }, help = true,
       description = "Print the help message")
   private boolean help = false;
 
@@ -63,11 +63,10 @@ public class MdbcServer {
 
     try {
     	ranges = DatabasePartition.readJsonFromFile(rangesFile);
-    	//JdbcMeta meta = new JdbcMeta(url);
     	//\TODO Add configuration file with Server Info
     	Properties connectionProps = new Properties();
-    	connectionProps.put("user", "test");
-    	connectionProps.put("password", "");
+    	connectionProps.put("user", "root");
+    	connectionProps.put("password", "mysqltest");
     	MdbcServerLogic meta = new MdbcServerLogic(url,connectionProps,ranges);
     	LocalService service = new LocalService(meta);
 

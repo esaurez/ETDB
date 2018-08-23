@@ -1,13 +1,12 @@
 package com.att.research.mdbc;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.util.Base64;
 
+import com.att.research.logging.EELFLoggerDelegate;
+import com.att.research.logging.format.AppMessages;
+import com.att.research.logging.format.ErrorSeverity;
+import com.att.research.logging.format.ErrorTypes;
 import org.json.JSONObject;
 
 public class MDBCUtils {
@@ -38,6 +37,21 @@ public class MDBCUtils {
         ObjectOutputStream oos = new ObjectOutputStream( baos );
         oos.writeObject( o );
         oos.close();
-        return Base64.getEncoder().encodeToString(baos.toByteArray()); 
+        return Base64.getEncoder().encodeToString(baos.toByteArray());
     }
+
+    public static void saveToFile(String serializedContent, String filename, EELFLoggerDelegate logger) throws IOException {
+        try (PrintWriter fout = new PrintWriter(filename)) {
+            fout.println(serializedContent);
+        } catch (FileNotFoundException e) {
+            if(logger!=null){
+                logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.IOERROR, ErrorTypes.UNKNOWN, ErrorSeverity.CRITICAL);
+            }
+            else {
+                e.printStackTrace();
+            }
+            throw e;
+        }
+    }
+
 }

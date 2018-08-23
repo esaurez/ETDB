@@ -66,13 +66,11 @@ public class MdbcConnection implements Connection {
 
 		// Verify the tables in MUSIC match the tables in the database
 		// and create triggers on any tables that need them
-		if ( mgr != null ) {
-			try {
-				mgr.synchronizeTables();
-			}catch (QueryException e) {
-				logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
-			}
-			//mgr.synchronizeTableData();
+		//mgr.synchronizeTableData();
+		if ( mgr != null ) try {
+			mgr.synchronizeTables();
+		} catch (QueryException e) {
+			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 		}
 		else {
 			logger.error(EELFLoggerDelegate.errorLogger, "MusicSqlManager was not correctly created", AppMessages.UNKNOWNERROR, ErrorTypes.UNKNOWN, ErrorSeverity.FATAL);
@@ -139,6 +137,7 @@ public class MdbcConnection implements Connection {
 		if(progressKeeper != null) {
 			progressKeeper.commitRequested(id);
 		}
+
 		try {
 			mgr.commit(id,progressKeeper,partition);
 		} catch (MDBCServiceException e) {
@@ -146,9 +145,16 @@ public class MdbcConnection implements Connection {
 			logger.error(EELFLoggerDelegate.errorLogger, "Commit to music failed", AppMessages.UNKNOWNERROR, ErrorTypes.UNKNOWN, ErrorSeverity.FATAL);
 			throw new SQLException("Failure commiting to MUSIC");
 		}
-		progressKeeper.setMusicDone(id);;
+
+		if(progressKeeper != null) {
+			progressKeeper.setMusicDone(id);
+		}
+
 		conn.commit();
-		progressKeeper.setSQLDone(id);
+
+		if(progressKeeper != null) {
+			progressKeeper.setSQLDone(id);
+		}
 		//MusicMixin.releaseZKLocks(MusicMixin.currentLockMap.get(getConnID()));
 	}
 

@@ -15,6 +15,7 @@ public class TxCommitProgress{
 	private Map<String, CommitProgress> transactionInfo;
 
 	public TxCommitProgress(){
+		nextCommitId=new AtomicLong();
 		nextCommitId.set(0);
 		transactionInfo = new ConcurrentHashMap<>();
 	}
@@ -107,6 +108,10 @@ public class TxCommitProgress{
 			logger.error(EELFLoggerDelegate.errorLogger, "Transaction doesn't exist: [%l], failure when reinitializing tx progress",txId);
 		}
 		prog.reinitialize();
+	}
+
+	public void deleteTxProgress(String txId){
+		transactionInfo.remove(txId);
 	}
 }
 

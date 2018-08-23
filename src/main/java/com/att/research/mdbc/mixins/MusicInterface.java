@@ -10,6 +10,7 @@ import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.mdbc.DatabasePartition;
 import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
+import org.onap.music.exceptions.MusicLockingException;
 
 /**
  * This Interface defines the methods that MDBC needs for a class to provide access to the persistence layer of MUSIC.
@@ -139,11 +140,13 @@ public interface MusicInterface {
 	void createMdbcDataStructures();
 
 	/**
-	 * Commits the corresponding REDO-log into MUSIC 
+	 * Commits the corresponding REDO-log into MUSIC
+	 *
 	 * @param dbi, the database interface use in the local SQL cache, where the music interface is being used
+	 * @param partition
 	 * @param transactionDigest digest of the transaction that is being committed into the Redo log in music. It has to be a HashMap, because it is required to be serializable
-	 * @param commitId id associated with the log being send
-	 * @param progressKeeper data structure that is used to handle to detect failures, and know what to do 
+	 * @param txId id associated with the log being send
+	 * @param progressKeeper data structure that is used to handle to detect failures, and know what to do
 	 * @throws MDBCServiceException
 	 */
 	void commitLog(DBInterface dbi, DatabasePartition partition, HashMap<Range,StagingTable> transactionDigest, String txId,TxCommitProgress progressKeeper) throws MDBCServiceException;
@@ -175,7 +178,7 @@ public interface MusicInterface {
 	TablePartitionInformation getTablePartitionInformation(String table);
 	
 	HashMap<Range,StagingTable> getTransactionDigest(RedoRecordId id);
-	
+
 
 }
 

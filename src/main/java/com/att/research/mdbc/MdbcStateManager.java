@@ -59,12 +59,47 @@ public class MdbcStateManager implements StateManager{
         this.musicManager.createKeyspace();
         this.musicManager.initializeMdbcDataStructures();
         MusicMixin.loadProperties();
-        this.mdbcConnections = new HashMap<String,MdbcConnection>();
+        this.mdbcConnections = new HashMap<>();
     }
-  
+
+
+    public void CloseConnection(String connectionId){
+        //\TODO check if there is a race condition
+        if(mdbcConnections.containsKey(connectionId)) {
+            transactionInfo.deleteTxProgress(connectionId);
+            mdbcConnections.remove(connectionId);
+        }
+    }
+
+    public void OpenConnection(String id, Properties information){
+       if(!mdbcConnections.containsKey(id)){
+           Connection sqlConnection;
+           MdbcConnection newConnection;
+           //Create connection to local SQL DB
+           try {
+               sqlConnection = DriverManager.getConnection(url, this.info);
+           } catch (SQLException e) {
+               logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.QUERYERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
+               sqlConnection = null;
+           }
+           //Create MDBC connection
+           try {
+               newConnection = new MdbcConnection(id, url, sqlConnection, info, this.musicManager, transactionInfo,ranges);
+           } catch (MDBCServiceException e) {
+               logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
+               newConnection = null;
+           }
+           logger.info(EELFLoggerDelegate.applicationLogger,"Connection created for connection: "+id);
+           transactionInfo.createNewTransactionTracker(id, sqlConnection);
+           if(newConnection != null) {
+               mdbcConnections.put(id,newConnection);
+           }
+       }
+    }
+
     /**
      * This function returns the connection to the corresponding transaction 
-     * @param id of the transaction, created using {@link CreateNewtransaction} 
+     * @param id of the transaction, created using
      * @return
      */
     public Connection GetConnection(String id) {
@@ -77,7 +112,8 @@ public class MdbcStateManager implements StateManager{
     		return mdbcConnections.get(id);
     	}
 
-    	Connection sqlConnection, newConnection;
+    	Connection sqlConnection;
+    	MdbcConnection newConnection;
     	//Create connection to local SQL DB
 		try {
 			sqlConnection = DriverManager.getConnection(url, this.info);
@@ -95,6 +131,9 @@ public class MdbcStateManager implements StateManager{
 		logger.info(EELFLoggerDelegate.applicationLogger,"Connection created for connection: "+id);
 
     	transactionInfo.createNewTransactionTracker(id, sqlConnection);
+    	if(newConnection != null) {
+            mdbcConnections.put(id,newConnection);
+        }
     	return newConnection;
     }
 

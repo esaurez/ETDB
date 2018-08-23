@@ -87,7 +87,7 @@ public class Driver implements java.sql.Driver {
 		if (acceptsURL(url)) {
 			String newurl = rewriteURL(url, info);
 			logger.info(EELFLoggerDelegate.applicationLogger,"URL rewrite: "+url+ " to "+newurl);
-			java.sql.Driver dr = null;
+			java.sql.Driver dr;
 			try {
 				dr = DriverManager.getDriver(newurl);
 			} catch (SQLException sqlex) {

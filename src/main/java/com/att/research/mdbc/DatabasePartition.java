@@ -30,7 +30,7 @@ public class DatabasePartition {
 	 */
 	
 	public DatabasePartition() {
-		ranges = new HashSet<Range>();
+		ranges = new HashSet<>();
 	}
 	
 	public DatabasePartition(Set<Range> knownRanges, String titIndex, String titTable, String partitionId, String lockId) {
@@ -38,7 +38,7 @@ public class DatabasePartition {
 			ranges = knownRanges;
 		}
 		else {
-			ranges = new HashSet<Range>();
+			ranges = new HashSet<>();
 		}
 
 		if(titIndex != null) {
@@ -56,10 +56,10 @@ public class DatabasePartition {
 		}
 		
 		if(partitionId != null) {
-			this.setTransactionInformationTable(partitionId);
+			this.setPartitionId(partitionId);
 		}
 		else {
-			this.setTransactionInformationTable("");
+			this.setPartitionId("");
 		}	
 
 		if(lockId != null) {
@@ -105,7 +105,6 @@ public class DatabasePartition {
 	
 	/**
 	 * Delete a range that is being modified
-	 * @param tableName name of the table that contains the range
 	 * @param rangeToDel limits of the range
 	 */
 	public synchronized void deleteRange(Range rangeToDel) {

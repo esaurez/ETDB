@@ -26,7 +26,8 @@ import com.att.research.mdbc.TableInfo;
 public class MusicMixin implements MusicInterface {
 
 	public static Map<Integer, Set<String>> currentLockMap = new HashMap<>();
-	
+    public static List<String> criticalTables = new ArrayList<>();
+
 	@Override
 	public String getMixinName() {
 		// 
@@ -123,13 +124,9 @@ public class MusicMixin implements MusicInterface {
 		
 	}
 	
-	public void updateDirtyRowAndEntityTableInMusic(String tableName, JSONObject changedRow, boolean isCritical) {
-		// 
-		
-	}
+	public void updateDirtyRowAndEntityTableInMusic(String tableName, JSONObject changedRow, boolean isCritical) { }
 	
-public static List<String> criticalTables = new ArrayList<>();
-	
+
 	public static void loadProperties() {
 	    Properties prop = new Properties();
 	    InputStream input = null;
@@ -195,4 +192,63 @@ public static List<String> criticalTables = new ArrayList<>();
 			throws MDBCServiceException{
 		// TODO Auto-generated method stub
 	}
+
+	@Override
+    public TablePartitionInformation getTablePartitionInformation(String table){
+	    return null;
+    }
+
+    @Override
+    public HashMap<Range,StagingTable> getTransactionDigest(RedoRecordId id){
+	    return null;
+    }
+
+    @Override
+    public 	TransactionInformationElement getTransactionInformation(String id){
+	    return null;
+    }
+
+    @Override
+    public 	void updateTitReference(String partition, TitReference tit){}
+
+    @Override
+    public 	List<RedoHistoryElement> getHistory(DatabasePartition partition){
+	   return null;
+    }
+
+    @Override
+    public 	void addRedoHistory(DatabasePartition partition, TitReference newTit, List<TitReference> old){
+    }
+
+    @Override
+    public 	TitReference createPartition(List<String> tables, int replicationFactor, String currentOwner){
+	   return null;
+    }
+
+    @Override
+    public 	List<PartitionInformation> getPartitionInformation(DatabasePartition partition){
+	   return null;
+    }
+
+    @Override
+	public TitReference createTransactionInformationRow(TransactionInformationElement info){
+	   return null;
+    }
+
+    @Override
+	public void appendToRedoLog(TitReference titRow, DatabasePartition partition, RedoRecordId newRecord){
+    }
+
+    @Override
+	public void appendRedoRecord(String redoRecordTable, RedoRecordId newRecord, String transactionDigest){
+    }
+
+    @Override
+	public void updateTablePartition(String table, DatabasePartition partition){}
+
+	@Override
+	public void updatePartitionOwner(String partition, String owner){}
+
+	@Override
+	public void updatePartitionReplicationFactor(String partition, int replicationFactor){}
 }

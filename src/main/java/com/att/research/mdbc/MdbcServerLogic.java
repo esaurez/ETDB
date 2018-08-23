@@ -5,7 +5,13 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import org.apache.calcite.avatica.MissingResultsException;
 import org.apache.calcite.avatica.NoSuchStatementException;
 import org.apache.calcite.avatica.jdbc.JdbcMeta;
@@ -23,17 +29,105 @@ public class MdbcServerLogic extends JdbcMeta{
 	StateManager manager;
 	DatabasePartition ranges;
 
+	//TODO: Delete this properties after debugging
+	private final Properties info;
+	private final Cache<String, Connection> connectionCache;
+
 	public MdbcServerLogic(String Url, Properties info,DatabasePartition ranges) throws SQLException {
 		super(Url,info);
 		this.manager = new MdbcStateManager(Url,info,ranges);
 		this.ranges = ranges;
+		this.info = info;
+        int concurrencyLevel = Integer.parseInt(
+                info.getProperty(ConnectionCacheSettings.CONCURRENCY_LEVEL.key(),
+                        ConnectionCacheSettings.CONCURRENCY_LEVEL.defaultValue()));
+        int initialCapacity = Integer.parseInt(
+                info.getProperty(ConnectionCacheSettings.INITIAL_CAPACITY.key(),
+                        ConnectionCacheSettings.INITIAL_CAPACITY.defaultValue()));
+        long maxCapacity = Long.parseLong(
+                info.getProperty(ConnectionCacheSettings.MAX_CAPACITY.key(),
+                        ConnectionCacheSettings.MAX_CAPACITY.defaultValue()));
+        long connectionExpiryDuration = Long.parseLong(
+                info.getProperty(ConnectionCacheSettings.EXPIRY_DURATION.key(),
+                        ConnectionCacheSettings.EXPIRY_DURATION.defaultValue()));
+        TimeUnit connectionExpiryUnit = TimeUnit.valueOf(
+                info.getProperty(ConnectionCacheSettings.EXPIRY_UNIT.key(),
+                        ConnectionCacheSettings.EXPIRY_UNIT.defaultValue()));
+        this.connectionCache = CacheBuilder.newBuilder()
+                .concurrencyLevel(concurrencyLevel)
+                .initialCapacity(initialCapacity)
+                .maximumSize(maxCapacity)
+                .expireAfterAccess(connectionExpiryDuration, connectionExpiryUnit)
+                .removalListener(new ConnectionExpiryHandler())
+                .build();
 	}
 	
 	@Override
-	protected Connection getConnection(String id) throws SQLException {
-		return this.manager.GetConnection(id);
-	}
+    protected Connection getConnection(String id) throws SQLException {
+        if (id == null) {
+            throw new NullPointerException("Connection id is null.");
+        }
+        //\TODO: don't use connectionCache, use this.manager internal state
+        Connection conn = connectionCache.getIfPresent(id);
+        if (conn == null) {
+            this.manager.CloseConnection(id);
+            logger.error(EELFLoggerDelegate.errorLogger,"Connection not found: invalid id, closed, or expired: "
+                    + id);
+            throw new RuntimeException(" Connection not found: invalid id, closed, or expired: " + id);
+        }
+        return conn;
+    }
 
+	@Override
+	public void openConnection(ConnectionHandle ch, Map<String, String> information) {
+        Properties fullInfo = new Properties();
+        fullInfo.putAll(this.info);
+        if (information != null) {
+            fullInfo.putAll(information);
+		}
+
+        final ConcurrentMap<String, Connection> cacheAsMap = this.connectionCache.asMap();
+        if (cacheAsMap.containsKey(ch.id)) {
+            throw new RuntimeException("Connection already exists: " + ch.id);
+        }
+        // Avoid global synchronization of connection opening
+        try {
+            this.manager.OpenConnection(ch.id, info);
+            Connection conn = this.manager.GetConnection(ch.id);
+            Connection loadedConn = cacheAsMap.putIfAbsent(ch.id, conn);
+            logger.info("connection created with id {}", ch.id);
+            // Race condition: someone beat us to storing the connection in the cache.
+            if (loadedConn != null) {
+                //\TODO check if we added an additional race condition for this
+                this.manager.CloseConnection(ch.id);
+                conn.close();
+                throw new RuntimeException("Connection already exists: " + ch.id);
+            }
+        } catch (SQLException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
+            throw new RuntimeException(e);
+        }
+    }
+
+	@Override
+	public void closeConnection(ConnectionHandle ch) {
+        Connection conn = connectionCache.getIfPresent(ch.id);
+        if (conn == null) {
+            logger.debug("client requested close unknown connection {}", ch);
+            return;
+        }
+        logger.trace("closing connection {}", ch);
+        try {
+            conn.close();
+        } catch (SQLException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
+            throw new RuntimeException(e.getMessage());
+        } finally {
+            connectionCache.invalidate(ch.id);
+            this.manager.CloseConnection(ch.id);
+            logger.info("connection closed with id {}", ch.id);
+        }
+	}
 	
 	//\TODO All the following functions can be deleted
 	// Added for two reasons: debugging and logging
@@ -158,27 +252,9 @@ public class MdbcServerLogic extends JdbcMeta{
 		}		
 	}
 
-	@Override
-	public void openConnection(ConnectionHandle ch, Map<String, String> info) {
-		try {
-			super.openConnection(ch,info);
-			logger.info("connection created with id {}", ch.id);
-		} catch (Exception err ) {
-			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
-			throw(err);
-		}		
-	}
 
-	@Override
-	public void closeConnection(ConnectionHandle ch) {
-		try {
-			super.closeConnection(ch);
-			logger.info("connection closed with id {}", ch.id);
-		} catch (Exception err ) {
-			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
-			throw(err);
-		}		
-	}
+
+
 
 	@Override
 	public void commit(ConnectionHandle ch) {
@@ -201,5 +277,23 @@ public class MdbcServerLogic extends JdbcMeta{
 			throw(err);
 		}				
 	}
+
+	private class ConnectionExpiryHandler
+            implements RemovalListener<String, Connection> {
+
+        public void onRemoval(RemovalNotification<String, Connection> notification) {
+            String connectionId = notification.getKey();
+            Connection doomed = notification.getValue();
+            logger.debug("Expiring connection {} because {}", connectionId, notification.getCause());
+            try {
+                if (doomed != null) {
+                    doomed.close();
+                }
+            } catch (Throwable t) {
+                logger.info("Exception thrown while expiring connection {}", connectionId, t);
+            }
+        }
+    }
 }
+
 

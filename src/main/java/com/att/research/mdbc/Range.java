@@ -13,7 +13,7 @@ public class Range implements Serializable {
 
 	private static final long serialVersionUID = 1610744496930800088L;
 
-	final public String table;//Comma-separated index
+	final public String table;
 
 	public Range(String table) {
 		this.table = table;
