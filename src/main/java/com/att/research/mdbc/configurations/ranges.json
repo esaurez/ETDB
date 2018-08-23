@@ -1,0 +1,14 @@
+{
+  "transactionInformationTable": "TIT_TABLE",
+  "transactionInformationIndex": "1",
+  "partitionId": "1",
+  "lockId": "",
+  "ranges": [
+    {
+      "table": "table1"
+    },
+    {
+      "table": "table2"
+    }
+  ]
+}
