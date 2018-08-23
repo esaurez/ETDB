@@ -54,8 +54,10 @@ public class MdbcStateManager implements StateManager{
     	this.url = url;
     	this.info = info;
     	this.transactionInfo = new TxCommitProgress();
+    	//\fixme this is not really used, delete!
+        String cassandraUrl  = info.getProperty(Configuration.KEY_CASSANDRA_URL, Configuration.CASSANDRA_URL_DEFAULT);
         String mixin  = info.getProperty(Configuration.KEY_MUSIC_MIXIN_NAME, Configuration.MUSIC_MIXIN_DEFAULT);
-        this.musicManager = MixinFactory.createMusicInterface(mixin, url, info,ranges);
+        this.musicManager = MixinFactory.createMusicInterface(mixin, cassandraUrl, info,ranges);
         this.musicManager.createKeyspace();
         this.musicManager.initializeMdbcDataStructures();
         MusicMixin.loadProperties();
@@ -76,6 +78,16 @@ public class MdbcStateManager implements StateManager{
            Connection sqlConnection;
            MdbcConnection newConnection;
            //Create connection to local SQL DB
+           //\TODO: create function to generate connection outside of open connection and get connection
+           try {
+               //\TODO: pass the driver as a variable
+               Class.forName("com.mysql.jdbc.Driver");
+           }
+           catch (ClassNotFoundException e) {
+               // TODO Auto-generated catch block
+               logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
+               return;
+           }
            try {
                sqlConnection = DriverManager.getConnection(url, this.info);
            } catch (SQLException e) {
@@ -88,6 +100,7 @@ public class MdbcStateManager implements StateManager{
            } catch (MDBCServiceException e) {
                logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
                newConnection = null;
+               return;
            }
            logger.info(EELFLoggerDelegate.applicationLogger,"Connection created for connection: "+id);
            transactionInfo.createNewTransactionTracker(id, sqlConnection);
@@ -114,7 +127,16 @@ public class MdbcStateManager implements StateManager{
 
     	Connection sqlConnection;
     	MdbcConnection newConnection;
-    	//Create connection to local SQL DB
+        try {
+            //TODO: pass the driver as a variable
+            Class.forName("com.mysql.jdbc.Driver");
+        }
+        catch (ClassNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+
+        //Create connection to local SQL DB
 		try {
 			sqlConnection = DriverManager.getConnection(url, this.info);
 		} catch (SQLException e) {

@@ -65,7 +65,7 @@ public class MdbcServerLogic extends JdbcMeta{
 	@Override
     protected Connection getConnection(String id) throws SQLException {
         if (id == null) {
-            throw new NullPointerException("Connection id is null.");
+            throw new NullPointerException("Connection id is null");
         }
         //\TODO: don't use connectionCache, use this.manager internal state
         Connection conn = connectionCache.getIfPresent(id);
@@ -94,6 +94,10 @@ public class MdbcServerLogic extends JdbcMeta{
         try {
             this.manager.OpenConnection(ch.id, info);
             Connection conn = this.manager.GetConnection(ch.id);
+            if(conn == null) {
+                logger.error(EELFLoggerDelegate.errorLogger, "Connection created was null");
+                throw new RuntimeException("Connection created was null for connection: " + ch.id);
+            }
             Connection loadedConn = cacheAsMap.putIfAbsent(ch.id, conn);
             logger.info("connection created with id {}", ch.id);
             // Race condition: someone beat us to storing the connection in the cache.

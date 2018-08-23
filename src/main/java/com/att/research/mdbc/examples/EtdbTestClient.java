@@ -38,6 +38,40 @@ public class EtdbTestClient {
             return;
         }
 
+        final String createDB = "CREATE DATABASE IF NOT EXISTS test";
+        Statement stmtDB;
+        try {
+            stmtDB = connection.createStatement();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        boolean execute;
+        try {
+            execute = stmtDB.execute(createDB);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+
+        final String useDB = "USE test";
+        Statement stmtUseDB;
+        try {
+            stmtUseDB = connection.createStatement();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        try {
+            execute = stmtUseDB.execute(useDB);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
 // Some non-user-derived input
         final String sql = "CREATE TABLE IF NOT EXISTS Persons (\n" +
                 "    PersonID int,\n" +
@@ -54,7 +88,6 @@ public class EtdbTestClient {
             return;
         }
 
-        boolean execute;
         try {
             execute = stmt.execute(sql);
         } catch (SQLException e) {
@@ -75,51 +108,39 @@ public class EtdbTestClient {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
+        final String insertSQL = "INSERT INTO Persons VALUES (1, 'Martinez', 'Juan', 'KACB', 'ATLANTA');";
+        Statement insertStmt;
         try {
+            insertStmt = connection.createStatement();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        try {
+            execute = insertStmt.execute(insertSQL);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        try {
+            stmt.close();
+            stmtDB.close();
+            stmtUseDB.close();
+            insertStmt.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            connection.commit();
             connection.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
 
-//        SchemaPlus rootSchema = calciteConnection.getRootSchema();
-//        rootSchema.add("hr", new ReflectiveSchema(new Hr()));
-//        Statement statement = null;
-//        try {
-//            statement = connection.createStatement();
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//            System.exit(1);
-//        }
-//        ResultSet resultSet =
-//                null;
-//        try {
-//            resultSet = statement.executeQuery("select *\n"
-//                    + "from \"hr\".\"emps\" as e\n");
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//            System.exit(1);
-//        }
-//        final StringBuilder buf = new StringBuilder();
-//        while (resultSet.next()) {
-//            int n = 0;
-//            try {
-//                n = resultSet.getMetaData().getColumnCount();
-//            } catch (SQLException e) {
-//                e.printStackTrace();
-//                continue;
-//            }
-//            for (int i = 1; i <= n; i++) {
-//                buf.append(i > 1 ? "; " : "")
-//                        .append(resultSet.getMetaData().getColumnLabel(i))
-//                        .append("=")
-//                        .append(resultSet.getObject(i));
-//            }
-//            System.out.println(buf.toString());
-//            buf.setLength(0);
-//        }
-//        resultSet.close();
-//        statement.close();
-//        connection.close();
-//    }
+
     }
 }
