@@ -81,13 +81,12 @@ public class CassandraMixin implements MusicInterface {
 	public static final String DEFAULT_MUSIC_NAMESPACE = "namespace";
 	
 	/** Name of the tables required for MDBC */
-
 	public static final String TABLE_TO_PARTITION_TABLE_NAME = "TableToPartition";
 	public static final String PARTITION_INFORMATION_TABLE_NAME = "PartitionInfo";
 	public static final String REDO_HISTORY_TABLE_NAME= "RedoHistory";
-
-    private String REDO_RECORD_TABLE_NAME = "RedoRecords";
-	private String TRANSACTION_INFORMATION_TABLE_NAME;
+	//\TODO Add logic to change the names when required and create the tables when necessary
+    private String redoRecordTableName = "RedoRecords";
+	private String transactionInformationTableName = "TransactionInformation";
 
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(CassandraMixin.class);
 	
@@ -133,7 +132,6 @@ public class CassandraMixin implements MusicInterface {
 		this.music_rfactor  = 0;
 		this.myId           = null;
 		this.allReplicaIds  = null;
-        TRANSACTION_INFORMATION_TABLE_NAME = "TransactionInformation";
     }
 
 	public CassandraMixin(String url, Properties info, DatabasePartition ranges) {
@@ -155,7 +153,7 @@ public class CassandraMixin implements MusicInterface {
 
 		this.music_ns       = info.getProperty(KEY_MUSIC_NAMESPACE,DEFAULT_MUSIC_NAMESPACE);
 		logger.info(EELFLoggerDelegate.applicationLogger,"MusicSqlManager: music_ns="+music_ns);
-        TRANSACTION_INFORMATION_TABLE_NAME = "TransactionInformation";
+        transactionInformationTableName = "TransactionInformation";
     }
 
 	private String getMyHostId() {
@@ -193,6 +191,11 @@ public class CassandraMixin implements MusicInterface {
 	}
 	@Override
 	public void initializeMdbcDataStructures() {
+        CreateRedoRecordsTable(-1);//\TODO If we start partitioning the data base, we would need to use the redotable number
+		CreateTransactionInformationTable();
+		CreateTableToPartitionTable();
+		CreatePartitionInfoTable();
+		CreateRedoHistoryTable();
 	}
 	
 	/**
@@ -992,14 +995,15 @@ public class CassandraMixin implements MusicInterface {
 	 *
 	 */
 	private void CreateTransactionInformationTable() {
-		String tableName = TRANSACTION_INFORMATION_TABLE_NAME;
+		String tableName = transactionInformationTableName;
 		String priKey = "id";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("id uuid, ");
 		fields.append("partition uuid, ");
 		fields.append("latestapplied int, ");
 		fields.append("applied boolean, ");
-		fields.append("redo list<tuple<text,uuid>> ");
+		//TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
+		fields.append("redo list<frozen<tuple<text,uuid>>> ");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
 	}
@@ -1011,7 +1015,7 @@ public class CassandraMixin implements MusicInterface {
 	 *  * TransactionDigest: text that contains all the changes in the transaction
 	 */
 	private void CreateRedoRecordsTable(int redoTableNumber) {
-		String tableName = REDO_RECORD_TABLE_NAME;
+		String tableName = redoRecordTableName;
 		if(redoTableNumber >= 0) {
 			StringBuilder table = new StringBuilder();
 			table.append(tableName);
@@ -1036,9 +1040,9 @@ public class CassandraMixin implements MusicInterface {
 	 */
 	protected void CreateTableToPartitionTable() {
 		String tableName = TABLE_TO_PARTITION_TABLE_NAME ;
-		String priKey = "table";
+		String priKey = "tablename";
 		StringBuilder fields = new StringBuilder(); 
-		fields.append("table text, ");
+		fields.append("tablename text, ");
 		fields.append("partition uuid, ");
 		fields.append("previouspartitions set<uuid> ");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
@@ -1061,25 +1065,15 @@ public class CassandraMixin implements MusicInterface {
 
 	protected void CreateRedoHistoryTable() {
 		String tableName = REDO_HISTORY_TABLE_NAME;
-		String priKey = "partition,(redotable,redoindex)";
+		String priKey = "partition,redotable,redoindex";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("partition uuid, ");
 		fields.append("redotable text, ");
 		fields.append("redoindex uuid, ");
-		fields.append("previousredo set<tuple<text,uuid>>");
+        //TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
+		fields.append("previousredo set<frozen<tuple<text,uuid>>>");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
-	}
-
-	/**
-	 * This function created all the required tables in Music related to the REDO-log  table 
-	 */
-	public void createMdbcDataStructures() {
-		CreateRedoRecordsTable(-1);//\TODO If we start partitioning the data base, we would need to use the redotable number
-		CreateTransactionInformationTable();
-		CreateTableToPartitionTable();
-		CreatePartitionInfoTable();
-		CreateRedoHistoryTable();
 	}
 
 	private PreparedQueryObject createAppendRRTIndexToTitQuery(String titTable, String uuid, String table, String redoUuid){
@@ -1107,7 +1101,7 @@ public class CassandraMixin implements MusicInterface {
 			//\TODO Fetch TITIndex from the Range Information Table 
 			throw new MDBCServiceException("TIT Index retrieval not yet implemented");
 		}
-        String titKey = music_ns+"."+ TRANSACTION_INFORMATION_TABLE_NAME +"."+TITIndex;
+        String titKey = music_ns+"."+ transactionInformationTableName +"."+TITIndex;
 		//0. See if reference to lock was already created
 		String lockId = partition.getLockId();
 		if(lockId == null || lockId.isEmpty()) {
@@ -1132,7 +1126,7 @@ public class CassandraMixin implements MusicInterface {
 		//1. Push new row to RRT and obtain its index
 		PreparedQueryObject query = new PreparedQueryObject();
 	    StringBuilder cqlQuery = new StringBuilder("INSERT INTO ")
-	    	      .append(REDO_RECORD_TABLE_NAME)
+	    	      .append(redoRecordTableName)
 	    	      .append("(leaseid,leasecounter,transactiondigest) ")
 	    	      .append("VALUES (")
 	    	      .append( lockId ).append(",")
@@ -1163,8 +1157,8 @@ public class CassandraMixin implements MusicInterface {
                     .append(",")
                     .append(commitId)
                     .append(")");
-        PreparedQueryObject appendQuery = createAppendRRTIndexToTitQuery(TRANSACTION_INFORMATION_TABLE_NAME, TITIndex, REDO_RECORD_TABLE_NAME, redoUuidBuilder.toString());
-        ReturnType returnType = MusicCore.criticalPut(music_ns, TRANSACTION_INFORMATION_TABLE_NAME, titKey, appendQuery, lockId, null);
+        PreparedQueryObject appendQuery = createAppendRRTIndexToTitQuery(transactionInformationTableName, TITIndex, redoRecordTableName, redoUuidBuilder.toString());
+        ReturnType returnType = MusicCore.criticalPut(music_ns, transactionInformationTableName, titKey, appendQuery, lockId, null);
         if(returnType.getResult().compareTo(ResultType.SUCCESS) != 0 ){
             logger.error(EELFLoggerDelegate.errorLogger, "Error when executing append operation with return type: "+returnType.getMessage());
             throw new MDBCServiceException("Error when executing append operation with return type: "+returnType.getMessage());

@@ -73,7 +73,7 @@ This table maps each table to the current (and previous) partitions.
 
 #### Columns
 
-* **Table**: Text 
+* **TableName**: Text 
 	- Name of the table to which partitions are being associated 
 * **Partition**: UUID 
 	- Current partition that holds this table

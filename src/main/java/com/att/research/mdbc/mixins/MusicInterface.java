@@ -134,12 +134,6 @@ public interface MusicInterface {
 	String getMusicKeyFromRow(TableInfo ti, String tableName, JSONObject changedRow);
 
 	/**
-	 * Initializes all MDBC tables and associated data structures
-	 * This needs to be called when starting the music interface 
-	 */
-	void createMdbcDataStructures();
-
-	/**
 	 * Commits the corresponding REDO-log into MUSIC
 	 *
 	 * @param dbi, the database interface use in the local SQL cache, where the music interface is being used

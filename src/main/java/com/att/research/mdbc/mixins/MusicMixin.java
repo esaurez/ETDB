@@ -177,12 +177,6 @@ public class MusicMixin implements MusicInterface {
 	}
 
 	@Override
-	public void createMdbcDataStructures() {
-		// 
-		
-	}
-
-	@Override
 	public Object[] getObjects(TableInfo ti, String tableName, JSONObject row) {
 		return null;
 	}
