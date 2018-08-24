@@ -81,12 +81,12 @@ public class CassandraMixin implements MusicInterface {
 	public static final String DEFAULT_MUSIC_NAMESPACE = "namespace";
 	
 	/** Name of the tables required for MDBC */
-	public static final String TABLE_TO_PARTITION_TABLE_NAME = "TableToPartition";
-	public static final String PARTITION_INFORMATION_TABLE_NAME = "PartitionInfo";
-	public static final String REDO_HISTORY_TABLE_NAME= "RedoHistory";
+	public static final String TABLE_TO_PARTITION_TABLE_NAME = "tabletopartition";
+	public static final String PARTITION_INFORMATION_TABLE_NAME = "partitioninfo";
+	public static final String REDO_HISTORY_TABLE_NAME= "redohistory";
 	//\TODO Add logic to change the names when required and create the tables when necessary
-    private String redoRecordTableName = "RedoRecords";
-	private String transactionInformationTableName = "TransactionInformation";
+    private String redoRecordTableName = "redorecords";
+	private String transactionInformationTableName = "transactioninformation";
 
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(CassandraMixin.class);
 	
@@ -153,7 +153,7 @@ public class CassandraMixin implements MusicInterface {
 
 		this.music_ns       = info.getProperty(KEY_MUSIC_NAMESPACE,DEFAULT_MUSIC_NAMESPACE);
 		logger.info(EELFLoggerDelegate.applicationLogger,"MusicSqlManager: music_ns="+music_ns);
-        transactionInformationTableName = "TransactionInformation";
+        transactionInformationTableName = "transactioninformation";
     }
 
 	private String getMyHostId() {
@@ -1003,7 +1003,7 @@ public class CassandraMixin implements MusicInterface {
 		fields.append("latestapplied int, ");
 		fields.append("applied boolean, ");
 		//TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
-		fields.append("redo list<frozen<tuple<text,uuid>>> ");
+		fields.append("redo list<frozen<tuple<text,tuple<text,varint>>>> ");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
 	}
@@ -1026,7 +1026,7 @@ public class CassandraMixin implements MusicInterface {
 		String priKey = "leaseid,leasecounter";
 		StringBuilder fields = new StringBuilder(); 
 		fields.append("leaseid text, ");
-		fields.append("leasecounter bigint, ");
+		fields.append("leasecounter varint, ");
 		fields.append("transactiondigest text ");//notice lack of ','
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", music_ns, tableName, fields, priKey);
 		executeMusicWriteQuery(cql);
@@ -1034,9 +1034,6 @@ public class CassandraMixin implements MusicInterface {
 
 	/**
 	 * This function creates the Table To Partition table. It contain information related to 
-	 * 	* LeaseId: id associated with the lease, text
-	 * 	* LeaseCounter: transaction number under this lease, bigint \TODO this may need to be a varint later 
-	 *  * TransactionDigest: text that contains all the changes in the transaction
 	 */
 	protected void CreateTableToPartitionTable() {
 		String tableName = TABLE_TO_PARTITION_TABLE_NAME ;
@@ -1083,15 +1080,75 @@ public class CassandraMixin implements MusicInterface {
                 .append(music_ns)
                 .append(".")
                 .append(titTable)
-                .append(" SET events = events +[('")
+                .append(" SET redo = redo +[('")
                 .append(table)
-                .append("','")
+                .append("',")
                 .append(redoUuid)
-                .append("')] WHERE index = ")
+                .append(")] WHERE id = ")
                 .append(uuid)
-                .append(';');
+                .append(";");
         query.appendQueryString(appendBuilder.toString());
         return query;
+    }
+
+    protected String createAndAssignLock(String titKey, DatabasePartition partition) throws MDBCServiceException {
+	    String lockId;
+        lockId = MusicCore.createLockReference(titKey);
+        ReturnType lockReturn;
+        try {
+            lockReturn = MusicCore.acquireLock(titKey,lockId);
+        } catch (MusicLockingException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, "Lock was not acquire correctly for key "+titKey);
+            throw new MDBCServiceException("Lock was not acquire correctly for key "+titKey);
+        }
+        if(lockReturn.getResult().compareTo(ResultType.SUCCESS) != 0 ) {
+            throw new MDBCServiceException("Could not lock the corresponding lock");
+        }
+        //TODO: Java newbie here, verify that this lockId is actually assigned to the global DatabasePartition in the StateManager instance
+        partition.setLockId(lockId);
+        return lockId;
+    }
+
+    protected void pushRowToRRT(String lockId, String commitId, HashMap<Range,StagingTable> transactionDigest) throws MDBCServiceException{
+		PreparedQueryObject query = new PreparedQueryObject();
+	    StringBuilder cqlQuery = new StringBuilder("INSERT INTO ")
+                  .append(music_ns)
+                  .append('.')
+	    	      .append(redoRecordTableName)
+	    	      .append(" (leaseid,leasecounter,transactiondigest) ")
+	    	      .append("VALUES ('")
+	    	      .append( lockId ).append("',")
+	    	      .append( commitId ).append(",'");
+        try {
+            cqlQuery.append( MDBCUtils.toString(transactionDigest) );
+        } catch (IOException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, "Transaction Digest serialization was invalid for commit "+commitId);
+            throw new MDBCServiceException("Transaction Digest serialization was invalid for commit "+commitId);
+        }
+        cqlQuery.append("');");
+	    query.appendQueryString(cqlQuery.toString());
+		//\TODO check if I am not shooting on my own foot
+        try {
+            MusicCore.nonKeyRelatedPut(query,"critical");
+        } catch (MusicServiceException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, "Transaction Digest serialization was invalid for commit "+commitId);
+            throw new MDBCServiceException("Transaction Digest serialization for commit "+commitId);
+        }
+    }
+
+    protected void appendIndexToTit(String lockId, String titKey, String commitId, String TITIndex) throws MDBCServiceException{
+        StringBuilder redoUuidBuilder  = new StringBuilder();
+        redoUuidBuilder.append("('")
+                .append(lockId)
+                .append("',")
+                .append(commitId)
+                .append(")");
+        PreparedQueryObject appendQuery = createAppendRRTIndexToTitQuery(transactionInformationTableName, TITIndex, redoRecordTableName, redoUuidBuilder.toString());
+        ReturnType returnType = MusicCore.criticalPut(music_ns, transactionInformationTableName, TITIndex, appendQuery, lockId, null);
+        if(returnType.getResult().compareTo(ResultType.SUCCESS) != 0 ){
+            logger.error(EELFLoggerDelegate.errorLogger, "Error when executing append operation with return type: "+returnType.getMessage());
+            throw new MDBCServiceException("Error when executing append operation with return type: "+returnType.getMessage());
+        }
     }
 
 	@Override
@@ -1105,64 +1162,28 @@ public class CassandraMixin implements MusicInterface {
 		//0. See if reference to lock was already created
 		String lockId = partition.getLockId();
 		if(lockId == null || lockId.isEmpty()) {
-			lockId = MusicCore.createLockReference(titKey);
-            ReturnType lockReturn = null;
-            try {
-                lockReturn = MusicCore.acquireLock(titKey,lockId);
-            } catch (MusicLockingException e) {
-                logger.error(EELFLoggerDelegate.errorLogger, "Lock was not acquire correctly for key "+titKey);
-                throw new MDBCServiceException("Lock was not acquire correctly for key "+titKey);
-            }
-            if(lockReturn.getResult().compareTo(ResultType.SUCCESS) != 0 ) {
-				throw new MDBCServiceException("Could not lock the corresponding lock");
-			}
-			//TODO: Java newbie here, verify that this lockId is actually assigned to the global DatabasePartition in the StateManager instance
-			partition.setLockId(lockId);
+            lockId = createAndAssignLock(titKey,partition);
 		}
 
+		String commitId;
 		//Generate a local commit id
-		String commitId = Long.toString(progressKeeper.getCommitId(txId));
+        if(progressKeeper.containsTx(txId)) {
+            commitId = progressKeeper.getCommitId(txId).toString();
+        }
+        else{
+            logger.error(EELFLoggerDelegate.errorLogger, "Tx with id "+txId+" was not created in the TxCommitProgress ");
+            throw new MDBCServiceException("Tx with id "+txId+" was not created in the TxCommitProgress ");
+        }
 
 		//1. Push new row to RRT and obtain its index
-		PreparedQueryObject query = new PreparedQueryObject();
-	    StringBuilder cqlQuery = new StringBuilder("INSERT INTO ")
-	    	      .append(redoRecordTableName)
-	    	      .append("(leaseid,leasecounter,transactiondigest) ")
-	    	      .append("VALUES (")
-	    	      .append( lockId ).append(",")
-	    	      .append( commitId ).append(",");
-        try {
-            cqlQuery.append( MDBCUtils.toString(transactionDigest) );
-        } catch (IOException e) {
-            logger.error(EELFLoggerDelegate.errorLogger, "Transaction Digest serialization was invalid for commit "+commitId);
-            throw new MDBCServiceException("Transaction Digest serialization was invalid for commit "+commitId);
-        }
-        cqlQuery.append("');");
-	    query.appendQueryString(cqlQuery.toString());
-		//\TODO check if I am not shooting on my own foot  
-        try {
-            MusicCore.nonKeyRelatedPut(query,"critical");
-        } catch (MusicServiceException e) {
-            logger.error(EELFLoggerDelegate.errorLogger, "Transaction Digest serialization was invalid for commit "+commitId);
-            throw new MDBCServiceException("Transaction Digest serialization for commit "+commitId);
-        }
+        pushRowToRRT(lockId, commitId, transactionDigest);
+
         //2. Save RRT index to RQ
 		if(progressKeeper!= null) {
 			progressKeeper.setRecordId(txId,new RedoRecordId(lockId, commitId));
 		}
 		//3. Append RRT index into the corresponding TIT row array
-        StringBuilder redoUuidBuilder  = new StringBuilder();
-        redoUuidBuilder.append("(")
-                    .append(lockId)
-                    .append(",")
-                    .append(commitId)
-                    .append(")");
-        PreparedQueryObject appendQuery = createAppendRRTIndexToTitQuery(transactionInformationTableName, TITIndex, redoRecordTableName, redoUuidBuilder.toString());
-        ReturnType returnType = MusicCore.criticalPut(music_ns, transactionInformationTableName, titKey, appendQuery, lockId, null);
-        if(returnType.getResult().compareTo(ResultType.SUCCESS) != 0 ){
-            logger.error(EELFLoggerDelegate.errorLogger, "Error when executing append operation with return type: "+returnType.getMessage());
-            throw new MDBCServiceException("Error when executing append operation with return type: "+returnType.getMessage());
-        }
+        appendIndexToTit(lockId,titKey,commitId,TITIndex);
     }
 
     /**

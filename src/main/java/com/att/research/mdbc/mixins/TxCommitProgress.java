@@ -1,22 +1,23 @@
 package com.att.research.mdbc.mixins;
 
+import java.math.BigInteger;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import com.att.research.logging.EELFLoggerDelegate;
 
 import java.sql.Connection;
+import java.util.concurrent.atomic.AtomicReference;
 
 
 public class TxCommitProgress{
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(TxCommitProgress.class);
 
-	private AtomicLong nextCommitId;
+	private AtomicReference<BigInteger> nextCommitId;
 	private Map<String, CommitProgress> transactionInfo;
 
 	public TxCommitProgress(){
-		nextCommitId=new AtomicLong();
-		nextCommitId.set(0);
+		nextCommitId=new AtomicReference<>(BigInteger.ZERO);
 		transactionInfo = new ConcurrentHashMap<>();
 	}
 	
@@ -24,12 +25,12 @@ public class TxCommitProgress{
 		return transactionInfo.containsKey(txId);
 	}
 	
-	public long getCommitId(String txId) {
+	public BigInteger getCommitId(String txId) {
 		CommitProgress prog = transactionInfo.get(txId);
 		if(prog.isCommitIdAssigned()) {
 			return prog.getCommitId();
 		}
-		Long commitId = nextCommitId.getAndIncrement();
+		BigInteger commitId = nextCommitId.getAndUpdate((a)-> a.add(BigInteger.ONE));
 		prog.setCommitId(commitId);
 		return commitId;
 	}
@@ -117,12 +118,12 @@ public class TxCommitProgress{
 
 final class CommitProgress{
 	private String lTxId; // local transaction id  
-	private Long commitId; // commit id 
+	private BigInteger commitId; // commit id
 	private boolean commitRequested; //indicates if the user tried to commit the request already.
 	private boolean SQLDone; // indicates if SQL was already committed 
 	private boolean MusicDone; // indicates if music commit was already performed, atomic bool
 	private Connection connection;// reference to a connection object. This is used to complete a commit if it failed in the original thread.
-	private long timestamp; // last time this data structure was updated
+	private Long timestamp; // last time this data structure was updated
 	private RedoRecordId redoRecordId;// record id for each partition
 
 	public CommitProgress(String id,Connection conn){
@@ -132,6 +133,7 @@ final class CommitProgress{
 		SQLDone = false;
 		MusicDone = false;
 		connection = conn;
+	    commitId = null;
 		timestamp = System.currentTimeMillis();
 	}
 	
@@ -139,7 +141,7 @@ final class CommitProgress{
 		return commitRequested && SQLDone && MusicDone;
 	}
 	
-	public synchronized void setCommitId(long commitId) {
+	public synchronized void setCommitId(BigInteger commitId) {
 		this.commitId = commitId;
 		timestamp = System.currentTimeMillis();
 	}
@@ -189,7 +191,7 @@ final class CommitProgress{
 		return redoRecordId;
 	} 
 	
-	public synchronized long getCommitId() {
+	public synchronized BigInteger getCommitId() {
 		return commitId;
 	}
 	
@@ -198,6 +200,6 @@ final class CommitProgress{
 	}
 	
 	public synchronized boolean isCommitIdAssigned() {
-		return this.commitId!=-1;
+		return this.commitId!= null;
 	}
 }

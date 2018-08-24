@@ -115,6 +115,7 @@ public class MdbcServerLogic extends JdbcMeta{
 
 	@Override
 	public void closeConnection(ConnectionHandle ch) {
+	    //\TODO use state connection instead
         Connection conn = connectionCache.getIfPresent(ch.id);
         if (conn == null) {
             logger.debug("client requested close unknown connection {}", ch);
@@ -132,6 +133,17 @@ public class MdbcServerLogic extends JdbcMeta{
             logger.info("connection closed with id {}", ch.id);
         }
 	}
+
+    @Override
+    public void commit(ConnectionHandle ch) {
+        try {
+            super.commit(ch);
+            logger.info("connection commited with id {}", ch.id);
+        } catch (Exception err ) {
+            logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
+            throw(err);
+        }
+    }
 	
 	//\TODO All the following functions can be deleted
 	// Added for two reasons: debugging and logging
@@ -260,16 +272,7 @@ public class MdbcServerLogic extends JdbcMeta{
 
 
 
-	@Override
-	public void commit(ConnectionHandle ch) {
-		try {
-			super.closeConnection(ch);
-			logger.info("connection commited with id {}", ch.id);
-		} catch (Exception err ) {
-			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
-			throw(err);
-		}				
-	}
+
 
 	@Override
 	public void rollback(ConnectionHandle ch) {

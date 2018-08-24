@@ -18,16 +18,16 @@ This is a type of table, and there can be many instances of this table in Music.
 
 #### Columns
 
-* **Index**: UUID 
+* **id**: UUID 
     - The id of this row 
     - **Note**: Later we could force the index to follow a certain pattern, such that the rows of a given MDBC Server are located as close as possible to that server, without violating any other policy associated with the data.
-* **Redo**: Array&lt;Tuple&lt;Text,UUID>>
+* **redo**: Array&lt;Tuple&lt;Text,varint>>
     - Array (order-matters) of &lt;TableName,Index> associated with the Redo Records that were applied to this partition
-* **Partition**: UUID 
+* **partition**: UUID 
     - The id of the partition associated with this transaction 
-* **LatestApplied**: Int 
+* **latestapplied**: Int 
     - Integer associated with the latest RedoRecord applied from the Redo column into the data tables in Music. 
-* **Applied**: boolean 
+* **applied**: boolean 
     - Flag that indicates that this row Tx's were already committed to the data tables 
 
 #### Primary
@@ -54,7 +54,7 @@ This is an append/remove only table, no updates are going to be performed.
 
 * **leaseid**: text
 	* Id of the lease that was used to process the transaction associated with the row in TIT
-* **leasecounter**: bigint
+* **leasecounter**: varint
 	* Transaction number (counter of the transactions performed so far using the lock in leaseid) 
 * **transactiondigest**: text
 	* Serialized transaction digest, can be considered a blob

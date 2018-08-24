@@ -134,6 +134,9 @@ public class MdbcConnection implements Connection {
 
 	@Override
 	public void commit() throws SQLException {
+		if(progressKeeper.isComplete(id)) {
+			return;
+		}
 		if(progressKeeper != null) {
 			progressKeeper.commitRequested(id);
 		}

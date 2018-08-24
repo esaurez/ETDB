@@ -72,6 +72,12 @@ public class EtdbTestClient {
             return;
         }
 
+        try {
+            connection.setAutoCommit(false);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
 // Some non-user-derived input
         final String sql = "CREATE TABLE IF NOT EXISTS Persons (\n" +
                 "    PersonID int,\n" +
@@ -120,6 +126,13 @@ public class EtdbTestClient {
 
         try {
             execute = insertStmt.execute(insertSQL);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        try {
+            connection.commit();
         } catch (SQLException e) {
             e.printStackTrace();
             return;
