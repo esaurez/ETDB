@@ -21,7 +21,7 @@ This is a type of table, and there can be many instances of this table in Music.
 * **id**: UUID 
     - The id of this row 
     - **Note**: Later we could force the index to follow a certain pattern, such that the rows of a given MDBC Server are located as close as possible to that server, without violating any other policy associated with the data.
-* **redo**: Array&lt;Tuple&lt;Text,varint>>
+* **redo**: Array&lt;Tuple&lt;Text,Tuple&lt;Text,varint>>
     - Array (order-matters) of &lt;TableName,Index> associated with the Redo Records that were applied to this partition
 * **partition**: UUID 
     - The id of the partition associated with this transaction 
