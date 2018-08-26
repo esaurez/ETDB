@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.att.research.logging.EELFLoggerDelegate;
+import com.att.research.mdbc.mixins.CassandraMixin;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -24,7 +25,7 @@ public class DatabasePartition {
 	private String partitionId;
 	private String lockId;
 	protected Set<Range> ranges;
-	
+
 	/**
 	 * Each range represents a partition of the database, a database partition is a union of this partitions. 
 	 * The only requirement is that the ranges are not overlapping.
@@ -34,13 +35,20 @@ public class DatabasePartition {
 		ranges = new HashSet<>();
 	}
 	
-	public DatabasePartition(Set<Range> knownRanges, String titIndex, String titTable, String partitionId, String lockId) {
+	public DatabasePartition(Set<Range> knownRanges, String titIndex, String titTable, String partitionId, String lockId, String redoRecordsTable) {
 		if(knownRanges != null) {
 			ranges = knownRanges;
 		}
 		else {
 			ranges = new HashSet<>();
 		}
+
+		if(redoRecordsTable != null) {
+            this.setRedoRecordsTable(redoRecordsTable);
+        }
+        else{
+            this.setRedoRecordsTable("");
+        }
 
 		if(titIndex != null) {
 			this.setTransactionInformationIndex(titIndex);
@@ -171,4 +179,12 @@ public class DatabasePartition {
 	public void setLockId(String lockId) {
 		this.lockId = lockId;
 	}
+
+    public String getRedoRecordsTable() {
+        return redoRecordsTable;
+    }
+
+    public void setRedoRecordsTable(String redoRecordsTable) {
+        this.redoRecordsTable = redoRecordsTable;
+    }
 }

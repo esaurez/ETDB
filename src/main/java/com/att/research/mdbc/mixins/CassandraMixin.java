@@ -187,12 +187,17 @@ public class CassandraMixin implements MusicInterface {
 		}
 	}
 	@Override
-	public void initializeMdbcDataStructures() {
-        DatabaseOperations.CreateRedoRecordsTable(-1, music_ns, redoRecordTableName);//\TODO If we start partitioning the data base, we would need to use the redotable number
-		DatabaseOperations.CreateTransactionInformationTable(music_ns, transactionInformationTableName);
-		DatabaseOperations.CreateTableToPartitionTable(music_ns,TABLE_TO_PARTITION_TABLE_NAME);
-		DatabaseOperations.CreatePartitionInfoTable(music_ns,PARTITION_INFORMATION_TABLE_NAME);
-        DatabaseOperations.CreateRedoHistoryTable(music_ns,REDO_HISTORY_TABLE_NAME);
+	public void initializeMdbcDataStructures() throws MDBCServiceException {
+	    try {
+			DatabaseOperations.CreateRedoRecordsTable(-1, music_ns, redoRecordTableName);//\TODO If we start partitioning the data base, we would need to use the redotable number
+			DatabaseOperations.CreateTransactionInformationTable(music_ns, transactionInformationTableName);
+			DatabaseOperations.CreateTableToPartitionTable(music_ns, TABLE_TO_PARTITION_TABLE_NAME);
+			DatabaseOperations.CreatePartitionInfoTable(music_ns, PARTITION_INFORMATION_TABLE_NAME);
+			DatabaseOperations.CreateRedoHistoryTable(music_ns, REDO_HISTORY_TABLE_NAME);
+		}
+		catch(MDBCServiceException e){
+            logger.error(EELFLoggerDelegate.errorLogger,"Error creating tables in MUSIC");
+        }
 	}
 	
 	/**

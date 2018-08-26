@@ -49,7 +49,7 @@ public class MdbcStateManager implements StateManager{
     @SuppressWarnings("unused")
 	private DatabasePartition ranges;
     
-    public MdbcStateManager(String url, Properties info, DatabasePartition ranges){
+    public MdbcStateManager(String url, Properties info, DatabasePartition ranges) throws MDBCServiceException {
     	this.ranges=ranges;
     	this.url = url;
     	this.info = info;
@@ -59,7 +59,12 @@ public class MdbcStateManager implements StateManager{
         String mixin  = info.getProperty(Configuration.KEY_MUSIC_MIXIN_NAME, Configuration.MUSIC_MIXIN_DEFAULT);
         this.musicManager = MixinFactory.createMusicInterface(mixin, cassandraUrl, info,ranges);
         this.musicManager.createKeyspace();
-        this.musicManager.initializeMdbcDataStructures();
+        try {
+            this.musicManager.initializeMdbcDataStructures();
+        } catch (MDBCServiceException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
+            throw(e);
+        }
         MusicMixin.loadProperties();
         this.mdbcConnections = new HashMap<>();
     }

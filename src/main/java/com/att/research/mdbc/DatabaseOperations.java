@@ -1,8 +1,9 @@
 package com.att.research.mdbc;
 
+import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.logging.EELFLoggerDelegate;
-import com.att.research.mdbc.mixins.CassandraMixin;
 import org.onap.music.datastore.PreparedQueryObject;
+import org.onap.music.exceptions.MusicLockingException;
 import org.onap.music.main.MusicCore;
 import org.onap.music.main.ReturnType;
 
@@ -11,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 public class DatabaseOperations {
-
+    private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(DatabaseOperations.class);
     /**
      * This functions is used to generate cassandra uuid
      * @return a random UUID that can be used for fields of type uuid
@@ -38,7 +39,7 @@ public class DatabaseOperations {
      * @param tableName name of the application table that is being added to the system
      * @param lockId if the lock for this key is already hold, this is the id of that lock. May be <code>null</code> if lock is not hold for the corresponding key
      */
-    public static void createNewTableToPartitionRow(String namespace, String tableToPartitionTableName, String tableName,String lockId){
+    public static void createNewTableToPartitionRow(String namespace, String tableToPartitionTableName, String tableName,String lockId) throws MDBCServiceException {
         final String primaryKey = getTableToPartitionPrimaryKey(namespace,tableToPartitionTableName,tableName);
         StringBuilder insert = new StringBuilder("INSERT INTO ")
                 .append(namespace)
@@ -50,7 +51,13 @@ public class DatabaseOperations {
                 .append("');");
         PreparedQueryObject query = new PreparedQueryObject();
         query.appendQueryString(insert.toString());
-        MusicCore.criticalPut(namespace,tableToPartitionTableName,primaryKey,query,lockId,null);
+        ReturnType rt;
+        try {
+            rt = executedLockedPut(namespace,tableToPartitionTableName,tableName,query,lockId,null);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create new row table to partition table ");
+            throw new MDBCServiceException("Initialization error: Failure to create new row table to partition table");
+        }
     }
 
     /**
@@ -61,20 +68,28 @@ public class DatabaseOperations {
      * @param newPartition partition to which the application table is assigned
      * @param lockId if the lock for this key is already hold, this is the id of that lock. May be <code>null</code> if lock is not hold for the corresponding key
      */
-    public static void updateTableToPartition(String namespace, String tableToPartitionTableName, String table, String newPartition, String lockId){
+    public static void updateTableToPartition(String namespace, String tableToPartitionTableName, String table, String newPartition, String lockId) throws MDBCServiceException {
         final String primaryKey = getTableToPartitionPrimaryKey(namespace,tableToPartitionTableName,table);
         PreparedQueryObject query = new PreparedQueryObject();
         StringBuilder update = new StringBuilder("UPDATE ")
                 .append(namespace)
                 .append('.')
                 .append(tableToPartitionTableName)
-                .append(" SET previouspartitions = previouspartitions + ['")
+                .append(" SET previouspartitions = previouspartitions + {")
                 .append(newPartition)
-                .append("'] WHERE tablename = '")
+                .append("}, partition = " )
+                .append(newPartition)
+                .append(" WHERE tablename = '")
                 .append(table)
                 .append("';");
         query.appendQueryString(update.toString());
-        MusicCore.criticalPut(namespace,tableToPartitionTableName,primaryKey,query,lockId,null);
+        ReturnType rt;
+        try {
+            rt = executedLockedPut(namespace,tableToPartitionTableName,table,query,lockId,null);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to update a row in table to partition table ");
+            throw new MDBCServiceException("Initialization error: Failure to update a row in table to partition table");
+        }
     }
 
 
@@ -91,7 +106,7 @@ public class DatabaseOperations {
      * @param lockId if the lock for this key is already hold, this is the id of that lock. May be <code>null</code> if lock is not hold for the corresponding key
      * @return the partition uuid associated to the new row
      */
-    public static String createPartitionInfoRow(String namespace, String partitionInfoTableName, int replicationFactor, List<String> tables, String lockId){
+    public static String createPartitionInfoRow(String namespace, String partitionInfoTableName, int replicationFactor, List<String> tables, String lockId) throws MDBCServiceException {
         String id = generateUniqueKey();
         final String primaryKey = getPartitionInformationPrimaryKey(namespace,partitionInfoTableName,id);
         StringBuilder insert = new StringBuilder("INSERT INTO ")
@@ -114,10 +129,16 @@ public class DatabaseOperations {
                     .append(table)
                     .append("'");
         }
-        insert.append("'});");
+        insert.append("});");
         PreparedQueryObject query = new PreparedQueryObject();
         query.appendQueryString(insert.toString());
-        MusicCore.criticalPut(namespace,partitionInfoTableName,primaryKey,query,lockId,null);
+        ReturnType rt;
+        try {
+            rt = executedLockedPut(namespace,partitionInfoTableName,id,query,lockId,null);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create new row in partition information table ");
+            throw new MDBCServiceException("Initialization error: Failure to create new row in partition information table");
+        }
         return id;
     }
 
@@ -130,7 +151,7 @@ public class DatabaseOperations {
      * @param owner owner that is handling the new tit row (url to the corresponding etdb nodej
      * @param lockId if the lock for this key is already hold, this is the id of that lock. May be <code>null</code> if lock is not hold for the corresponding key
      */
-    public static void updateRedoRow(String namespace, String partitionInfoTableName, String partitionId, RedoRow newTitRow, String owner, String lockId){
+    public static void updateRedoRow(String namespace, String partitionInfoTableName, String partitionId, RedoRow newTitRow, String owner, String lockId) throws MDBCServiceException {
         final String primaryKey = getTableToPartitionPrimaryKey(namespace,partitionInfoTableName,partitionId);
         PreparedQueryObject query = new PreparedQueryObject();
         String newOwner = (owner==null)?"":owner;
@@ -148,7 +169,13 @@ public class DatabaseOperations {
                 .append(partitionId)
                 .append(";");
         query.appendQueryString(update.toString());
-        MusicCore.criticalPut(namespace,partitionInfoTableName,primaryKey,query,lockId,null);
+        ReturnType rt;
+        try {
+            rt = executedLockedPut(namespace,partitionInfoTableName,partitionId,query,lockId,null);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to add new owner to partition in music table ");
+            throw new MDBCServiceException("Initialization error:Failure to add new owner to partition in music table  ");
+        }
     }
 
     /**
@@ -158,8 +185,8 @@ public class DatabaseOperations {
      * @param firstTitRow first tit  associated to the partition
      * @param partitionId partition for which a history is created
      */
-	public static void createRedoHistoryBeginRow(String namespace, String redoHistoryTableName, RedoRow firstTitRow, String partitionId){
-	    createRedoHistoryRow(namespace,redoHistoryTableName,firstTitRow,partitionId, new ArrayList<>());
+	public static void createRedoHistoryBeginRow(String namespace, String redoHistoryTableName, RedoRow firstTitRow, String partitionId, String lockId) throws MDBCServiceException {
+	    createRedoHistoryRow(namespace,redoHistoryTableName,firstTitRow,partitionId, new ArrayList<>(),lockId);
     }
 
     /**
@@ -170,7 +197,7 @@ public class DatabaseOperations {
      * @param partitionId partition for which a history is created
      * @param parentsRows parent tit rows associated to this partition
      */
-	public static void createRedoHistoryRow(String namespace, String redoHistoryTableName, RedoRow currentRow, String partitionId, List<RedoRow> parentsRows){
+	public static void createRedoHistoryRow(String namespace, String redoHistoryTableName, RedoRow currentRow, String partitionId, List<RedoRow> parentsRows, String lockId) throws MDBCServiceException {
 	    final String primaryKey = partitionId+"-"+currentRow.getRedoTableName()+"-"+currentRow.getRedoRowIndex();
         StringBuilder insert = new StringBuilder("INSERT INTO ")
                 .append(namespace)
@@ -179,9 +206,9 @@ public class DatabaseOperations {
                 .append(" (partition,redotable,redoindex,previousredo) VALUES ")
                 .append("(")
                 .append(partitionId)
-                .append(",")
+                .append(",'")
                 .append(currentRow.getRedoTableName())
-                .append(",")
+                .append("',")
                 .append(currentRow.getRedoRowIndex())
                 .append(",{");
         boolean first = true;
@@ -192,16 +219,22 @@ public class DatabaseOperations {
             else{
                 first = false;
             }
-            insert.append("(")
+            insert.append("('")
                     .append(parent.getRedoTableName())
-                    .append(",")
+                    .append("',")
                     .append(parent.getRedoRowIndex())
                     .append("),");
         }
         insert.append("});");
         PreparedQueryObject query = new PreparedQueryObject();
         query.appendQueryString(insert.toString());
-        MusicCore.criticalPut(namespace,redoHistoryTableName,primaryKey,query,null,null);
+        ReturnType rt;
+        try {
+            rt = executedLockedPut(namespace,redoHistoryTableName,primaryKey,query,lockId,null);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to add new row to redo history");
+            throw new MDBCServiceException("Initialization error:Failure to add new row to redo history");
+        }
     }
 
     /**
@@ -211,7 +244,7 @@ public class DatabaseOperations {
      * @param partitionId partition to which the redo log is hold
      * @return uuid associated to the new row
      */
-    public static String CreateEmptyTitRow(String namespace, String titTableName, String partitionId){
+    public static String CreateEmptyTitRow(String namespace, String titTableName, String partitionId, String lockId) throws MDBCServiceException {
         String id = generateUniqueKey();
         StringBuilder insert = new StringBuilder("INSERT INTO ")
                 .append(namespace)
@@ -225,7 +258,13 @@ public class DatabaseOperations {
                 .append(",[]);");
         PreparedQueryObject query = new PreparedQueryObject();
         query.appendQueryString(insert.toString());
-        MusicCore.criticalPut(namespace,titTableName,id,query,null,null);
+        ReturnType rt;
+        try {
+            rt = executedLockedPut(namespace,titTableName,id,query,lockId,null);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to add new row to transaction information");
+            throw new MDBCServiceException("Initialization error:Failure to add new row to transaction information");
+        }
         return id;
     }
 
@@ -240,7 +279,7 @@ public class DatabaseOperations {
 	 *		* Redo: list of uiids associated to the Redo Records Table
 	 *
 	 */
-	public static void CreateTransactionInformationTable( String musicNamespace, String transactionInformationTableName) {
+	public static void CreateTransactionInformationTable( String musicNamespace, String transactionInformationTableName) throws MDBCServiceException {
 		String tableName = transactionInformationTableName;
 		String priKey = "id";
 		StringBuilder fields = new StringBuilder();
@@ -251,8 +290,13 @@ public class DatabaseOperations {
 		//TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
 		fields.append("redo list<frozen<tuple<text,tuple<text,varint>>>> ");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
-		executeMusicWriteQuery(cql);
-	}
+        try {
+            executeMusicWriteQuery(cql);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create transaction information table");
+            throw(e);
+        }
+    }
 
 	/**
 	 * This function creates the RedoRecords table. It contain information related to each transaction committed
@@ -260,7 +304,7 @@ public class DatabaseOperations {
 	 * 	* LeaseCounter: transaction number under this lease, bigint \TODO this may need to be a varint later
 	 *  * TransactionDigest: text that contains all the changes in the transaction
 	 */
-	public static void CreateRedoRecordsTable(int redoTableNumber, String musicNamespace, String redoRecordTableName) {
+	public static void CreateRedoRecordsTable(int redoTableNumber, String musicNamespace, String redoRecordTableName) throws MDBCServiceException {
 		String tableName = redoRecordTableName;
 		if(redoTableNumber >= 0) {
 			StringBuilder table = new StringBuilder();
@@ -275,13 +319,18 @@ public class DatabaseOperations {
 		fields.append("leasecounter varint, ");
 		fields.append("transactiondigest text ");//notice lack of ','
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
-		executeMusicWriteQuery(cql);
-	}
+        try {
+            executeMusicWriteQuery(cql);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create redo records table");
+            throw(e);
+        }
+    }
 
 	/**
 	 * This function creates the Table To Partition table. It contain information related to
 	 */
-	public static void CreateTableToPartitionTable(String musicNamespace, String tableToPartitionTableName) {
+	public static void CreateTableToPartitionTable(String musicNamespace, String tableToPartitionTableName) throws MDBCServiceException {
 		String tableName = tableToPartitionTableName;
 		String priKey = "tablename";
 		StringBuilder fields = new StringBuilder();
@@ -289,10 +338,15 @@ public class DatabaseOperations {
 		fields.append("partition uuid, ");
 		fields.append("previouspartitions set<uuid> ");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
-		executeMusicWriteQuery(cql);
-	}
+        try {
+            executeMusicWriteQuery(cql);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create table to partition table");
+            throw(e);
+        }
+    }
 
-	public static void CreatePartitionInfoTable(String musicNamespace, String partitionInformationTableName) {
+	public static void CreatePartitionInfoTable(String musicNamespace, String partitionInformationTableName) throws MDBCServiceException {
 		String tableName = partitionInformationTableName;
 		String priKey = "partition";
 		StringBuilder fields = new StringBuilder();
@@ -303,10 +357,15 @@ public class DatabaseOperations {
 		fields.append("replicationfactor int, ");
 		fields.append("currentowner text");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
-		executeMusicWriteQuery(cql);
-	}
+        try {
+            executeMusicWriteQuery(cql);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create partition information table");
+            throw(e);
+        }
+    }
 
-	public static void CreateRedoHistoryTable(String musicNamespace, String redoHistoryTableName) {
+	public static void CreateRedoHistoryTable(String musicNamespace, String redoHistoryTableName) throws MDBCServiceException {
 		String tableName = redoHistoryTableName;
 		String priKey = "partition,redotable,redoindex";
 		StringBuilder fields = new StringBuilder();
@@ -316,19 +375,43 @@ public class DatabaseOperations {
         //TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
 		fields.append("previousredo set<frozen<tuple<text,uuid>>>");
 		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
-		executeMusicWriteQuery(cql);
-	}
+        try {
+            executeMusicWriteQuery(cql);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create redo history table");
+            throw(e);
+        }
+    }
 
     /**
      * This method executes a write query in Music
      * @param cql the CQL to be sent to Cassandra
      */
-    protected static void executeMusicWriteQuery(String cql) {
+    protected static void executeMusicWriteQuery(String cql) throws MDBCServiceException {
         PreparedQueryObject pQueryObject = new PreparedQueryObject();
         pQueryObject.appendQueryString(cql);
         ReturnType rt = MusicCore.eventualPut(pQueryObject);
         if (rt.getResult().getResult().toLowerCase().equals("failure")) {
-            throw new RuntimeException("Music query failed");
+            throw new MDBCServiceException("Music eventual put failed");
         }
+    }
+
+    protected static ReturnType executedLockedPut(String namespace, String tableName, String primaryKeyWithoutDomain, PreparedQueryObject queryObject, String lockId, MusicCore.Condition conditionInfo) throws MDBCServiceException {
+        ReturnType rt ;
+        if(lockId==null) {
+            try {
+                rt = MusicCore.atomicPut(namespace, tableName, primaryKeyWithoutDomain, queryObject, conditionInfo);
+            } catch (MusicLockingException e) {
+                logger.error("Music locked put failed");
+                throw new MDBCServiceException("Music locked put failed");
+            }
+        }
+        else {
+            rt = MusicCore.criticalPut(namespace, tableName, primaryKeyWithoutDomain, queryObject, lockId, conditionInfo);
+        }
+        if (rt.getResult().getResult().toLowerCase().equals("failure")) {
+            throw new MDBCServiceException("Music locked put failed");
+        }
+        return rt;
     }
 }

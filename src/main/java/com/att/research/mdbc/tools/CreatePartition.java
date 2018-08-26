@@ -27,7 +27,10 @@ public class CreatePartition {
     @Parameter(names = { "-n", "--tit-table-name" }, required = true,
             description = "Tit Table name")
     private String titTable;
-        @Parameter(names = { "-p", "--partition-id" }, required = true,
+    @Parameter(names = { "-r", "--redorecords-table-name" }, required = true,
+            description = "Redo Records Table name")
+    private String rrTable;
+    @Parameter(names = { "-p", "--partition-id" }, required = true,
             description = "Partition Id")
     private String partitionId;
     @Parameter(names = { "-h", "-help", "--help" }, help = true,
@@ -40,7 +43,7 @@ public class CreatePartition {
     }
 
     public void convert(){
-        config = new NodeConfiguration(tables,titIndex,titTable,partitionId,"test","");
+        config = new NodeConfiguration(tables,titIndex,titTable,partitionId,"test","",rrTable);
     }
 
     public void saveToFile(){

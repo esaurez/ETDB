@@ -8,6 +8,7 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+import com.att.research.exceptions.MDBCServiceException;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
@@ -33,7 +34,7 @@ public class MdbcServerLogic extends JdbcMeta{
 	private final Properties info;
 	private final Cache<String, Connection> connectionCache;
 
-	public MdbcServerLogic(String Url, Properties info,DatabasePartition ranges) throws SQLException {
+	public MdbcServerLogic(String Url, Properties info,DatabasePartition ranges) throws SQLException, MDBCServiceException {
 		super(Url,info);
 		this.manager = new MdbcStateManager(Url,info,ranges);
 		this.ranges = ranges;

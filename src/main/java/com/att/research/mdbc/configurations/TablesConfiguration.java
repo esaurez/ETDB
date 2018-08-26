@@ -69,7 +69,7 @@ public class TablesConfiguration {
                 partitionId = partitionInfo.partitionId;
             }
             //2) Create a row in the transaction information table
-            String titIndex = DatabaseOperations.CreateEmptyTitRow(musicNamespace,titTableName,partitionId);
+            String titIndex = DatabaseOperations.CreateEmptyTitRow(musicNamespace,titTableName,partitionId,null);
             //3) Add owner and tit information to partition info table
             RedoRow newRedoRow = new RedoRow(titTableName,titIndex);
             DatabaseOperations.updateRedoRow(musicNamespace,pitName,partitionId,newRedoRow,partitionInfo.owner,null);
@@ -78,9 +78,9 @@ public class TablesConfiguration {
                 DatabaseOperations.updateTableToPartition(musicNamespace, ttpName, table, partitionId, null);
             }
             //5) Add it to the redo history table
-            DatabaseOperations.createRedoHistoryBeginRow(musicNamespace,rhName,newRedoRow,partitionId);
+            DatabaseOperations.createRedoHistoryBeginRow(musicNamespace,rhName,newRedoRow,partitionId,null);
             //6) Create config for this node
-            nodeConfigs.add(new NodeConfiguration(String.join(",",partitionInfo.tables),titIndex,titTableName,partitionId,sqlDatabaseName,partitionInfo.owner));
+            nodeConfigs.add(new NodeConfiguration(String.join(",",partitionInfo.tables),titIndex,titTableName,partitionId,sqlDatabaseName,partitionInfo.owner,redoRecordsName));
         }
         return nodeConfigs;
     }
