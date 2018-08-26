@@ -1,0 +1,16 @@
+{
+  "sqlDatabaseName": "test",
+  "partition": {
+    "transactionInformationTable": "transactioninformation",
+    "transactionInformationIndex": "c454ef1f-f478-422c-85cd-04c8cb369804",
+    "redoRecordsTable": "redorecords",
+    "partitionId": "51c0ae7b-1229-468b-8450-2a4b887d2d9f",
+    "lockId": "",
+    "ranges": [
+      {
+        "table": "table6"
+      }
+    ]
+  },
+  "nodeName": ""
+}
