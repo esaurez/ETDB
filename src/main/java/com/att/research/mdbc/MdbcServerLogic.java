@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import com.att.research.exceptions.MDBCServiceException;
+import com.att.research.mdbc.configurations.NodeConfiguration;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
@@ -29,15 +30,19 @@ public class MdbcServerLogic extends JdbcMeta{
 
 	StateManager manager;
 	DatabasePartition ranges;
+	String name;
+	String sqlDatabase;
 
 	//TODO: Delete this properties after debugging
 	private final Properties info;
 	private final Cache<String, Connection> connectionCache;
 
-	public MdbcServerLogic(String Url, Properties info,DatabasePartition ranges) throws SQLException, MDBCServiceException {
+	public MdbcServerLogic(String Url, Properties info,NodeConfiguration config) throws SQLException, MDBCServiceException {
 		super(Url,info);
-		this.manager = new MdbcStateManager(Url,info,ranges);
-		this.ranges = ranges;
+		this.ranges = config.partition;
+		this.name = config.nodeName;
+		this.sqlDatabase = config.sqlDatabaseName;
+		this.manager = new MdbcStateManager(Url,info,this.ranges,this.sqlDatabase);
 		this.info = info;
         int concurrencyLevel = Integer.parseInt(
                 info.getProperty(ConnectionCacheSettings.CONCURRENCY_LEVEL.key(),

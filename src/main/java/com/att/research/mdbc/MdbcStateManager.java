@@ -13,6 +13,7 @@ import com.att.research.mdbc.mixins.TxCommitProgress;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -41,7 +42,9 @@ public class MdbcStateManager implements StateManager{
     private TxCommitProgress transactionInfo;
     
     private Map<String,MdbcConnection> mdbcConnections;
-    
+
+    private String sqlDatabase;
+
     private String url;
     
     private Properties info;
@@ -49,7 +52,8 @@ public class MdbcStateManager implements StateManager{
     @SuppressWarnings("unused")
 	private DatabasePartition ranges;
     
-    public MdbcStateManager(String url, Properties info, DatabasePartition ranges) throws MDBCServiceException {
+    public MdbcStateManager(String url, Properties info, DatabasePartition ranges, String sqlDatabase) throws MDBCServiceException {
+        this.sqlDatabase=sqlDatabase;
     	this.ranges=ranges;
     	this.url = url;
     	this.info = info;
@@ -67,8 +71,30 @@ public class MdbcStateManager implements StateManager{
         }
         MusicMixin.loadProperties();
         this.mdbcConnections = new HashMap<>();
+        initSqlDatabase();
     }
 
+    protected void initSqlDatabase() throws MDBCServiceException {
+        try {
+            //\TODO: pass the driver as a variable
+            Class.forName("com.mysql.jdbc.Driver");
+        }
+        catch (ClassNotFoundException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
+            return;
+        }
+        try {
+            Connection sqlConnection = DriverManager.getConnection(this.url, this.info);
+            StringBuilder sql = new StringBuilder("CREATE DATABASE IF NOT EXISTS ")
+                    .append(sqlDatabase)
+                    .append(";");
+            Statement stmt = sqlConnection.createStatement();
+            stmt.execute(sql.toString());
+        } catch (SQLException e) {
+            logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
+            throw new MDBCServiceException(e.getMessage());
+        }
+    }
 
     public void CloseConnection(String connectionId){
         //\TODO check if there is a race condition
@@ -94,14 +120,14 @@ public class MdbcStateManager implements StateManager{
                return;
            }
            try {
-               sqlConnection = DriverManager.getConnection(url, this.info);
+               sqlConnection = DriverManager.getConnection(this.url+"/"+this.sqlDatabase, this.info);
            } catch (SQLException e) {
                logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.QUERYERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
                sqlConnection = null;
            }
            //Create MDBC connection
            try {
-               newConnection = new MdbcConnection(id, url, sqlConnection, info, this.musicManager, transactionInfo,ranges);
+               newConnection = new MdbcConnection(id, this.url+"/"+this.sqlDatabase, sqlConnection, info, this.musicManager, transactionInfo,ranges);
            } catch (MDBCServiceException e) {
                logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
                newConnection = null;
@@ -143,14 +169,14 @@ public class MdbcStateManager implements StateManager{
 
         //Create connection to local SQL DB
 		try {
-			sqlConnection = DriverManager.getConnection(url, this.info);
+			sqlConnection = DriverManager.getConnection(this.url+"/"+this.sqlDatabase, this.info);
 		} catch (SQLException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.QUERYERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
 			sqlConnection = null;
 		}
 		//Create MDBC connection
     	try {
-			newConnection = new MdbcConnection(id, url, sqlConnection, info, this.musicManager, transactionInfo,ranges);
+			newConnection = new MdbcConnection(id,this.url+"/"+this.sqlDatabase, sqlConnection, info, this.musicManager, transactionInfo,ranges);
 		} catch (MDBCServiceException e) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
 			newConnection = null;

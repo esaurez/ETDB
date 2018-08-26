@@ -7,13 +7,16 @@ import com.att.research.mdbc.Range;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
 public class NodeConfiguration {
 
-    private transient final EELFLoggerDelegate LOG = EELFLoggerDelegate.getLogger(NodeConfiguration.class);
+    private static transient final EELFLoggerDelegate LOG = EELFLoggerDelegate.getLogger(NodeConfiguration.class);
 
     public String sqlDatabaseName;
     public DatabasePartition partition;
@@ -50,5 +53,19 @@ public class NodeConfiguration {
             // Exit with error
             System.exit(1);
         }
+    }
+
+    public static NodeConfiguration readJsonFromFile( String filepath) throws FileNotFoundException {
+        BufferedReader br;
+        try {
+            br = new BufferedReader(
+                    new FileReader(filepath));
+        } catch (FileNotFoundException e) {
+            LOG.error(EELFLoggerDelegate.errorLogger,"File was not found when reading json"+e);
+            throw e;
+        }
+        Gson gson = new Gson();
+        NodeConfiguration config = gson.fromJson(br, NodeConfiguration.class);
+        return config;
     }
 }

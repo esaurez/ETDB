@@ -38,47 +38,14 @@ public class EtdbTestClient {
             return;
         }
 
-        final String createDB = "CREATE DATABASE IF NOT EXISTS test";
-        Statement stmtDB;
         try {
-            stmtDB = connection.createStatement();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return;
-        }
-
-        boolean execute;
-        try {
-            execute = stmtDB.execute(createDB);
+        connection.setAutoCommit(false);
         } catch (SQLException e) {
             e.printStackTrace();
             return;
         }
 
 
-        final String useDB = "USE test";
-        Statement stmtUseDB;
-        try {
-            stmtUseDB = connection.createStatement();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return;
-        }
-
-        try {
-            execute = stmtUseDB.execute(useDB);
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return;
-        }
-
-        try {
-            connection.setAutoCommit(false);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-// Some non-user-derived input
         final String sql = "CREATE TABLE IF NOT EXISTS Persons (\n" +
                 "    PersonID int,\n" +
                 "    LastName varchar(255),\n" +
@@ -94,6 +61,7 @@ public class EtdbTestClient {
             return;
         }
 
+        boolean execute;
         try {
             execute = stmt.execute(sql);
         } catch (SQLException e) {
@@ -140,8 +108,6 @@ public class EtdbTestClient {
 
         try {
             stmt.close();
-            stmtDB.close();
-            stmtUseDB.close();
             insertStmt.close();
         } catch (SQLException e) {
             e.printStackTrace();

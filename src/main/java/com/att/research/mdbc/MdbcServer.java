@@ -17,6 +17,7 @@ package com.att.research.mdbc;
  * limitations under the License.
  */
 
+import com.att.research.mdbc.configurations.NodeConfiguration;
 import org.apache.calcite.avatica.remote.Driver.Serialization;
 import org.apache.calcite.avatica.remote.LocalService;
 import org.apache.calcite.avatica.server.HttpServer;
@@ -33,9 +34,9 @@ import java.util.Properties;
 public class MdbcServer {
   public static final EELFLoggerDelegate LOG = EELFLoggerDelegate.getLogger(MdbcStatement.class);
 
-  @Parameter(names = { "-r", "--ranges" }, required = true,
+  @Parameter(names = { "-c", "--configuration" }, required = true,
       description = "This is the file that contains the ranges that are assigned to this MDBC server")
-  private String rangesFile;
+  private String configurationFile;
 
   @Parameter(names = { "-u", "--url" }, required = true,
       description = "JDBC driver url for the server")
@@ -51,7 +52,7 @@ public class MdbcServer {
       description = "Print the help message")
   private boolean help = false;
 
-  private DatabasePartition ranges;
+  private NodeConfiguration config;
   private HttpServer server;
 
   public void start() {
@@ -62,12 +63,12 @@ public class MdbcServer {
     }
 
     try {
-    	ranges = DatabasePartition.readJsonFromFile(rangesFile);
+    	config = NodeConfiguration.readJsonFromFile(configurationFile);
     	//\TODO Add configuration file with Server Info
     	Properties connectionProps = new Properties();
     	connectionProps.put("user", "root");
     	connectionProps.put("password", "mysqltest");
-    	MdbcServerLogic meta = new MdbcServerLogic(url,connectionProps,ranges);
+    	MdbcServerLogic meta = new MdbcServerLogic(url,connectionProps,config);
     	LocalService service = new LocalService(meta);
 
     	// Construct the server
