@@ -19,7 +19,8 @@ public class DatabasePartition {
 	private transient static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(Driver.class);
 
 	private String transactionInformationTable;//Table that currently contains the REDO log for this partition
-	private String transactionInformationIndex;//Index that can be obtained either from  
+	private String transactionInformationIndex;//Index that can be obtained either from
+	private String redoRecordsTable;
 	private String partitionId;
 	private String lockId;
 	protected Set<Range> ranges;

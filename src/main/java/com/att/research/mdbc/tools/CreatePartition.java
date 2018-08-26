@@ -4,6 +4,7 @@ import com.att.research.logging.EELFLoggerDelegate;
 import com.att.research.mdbc.DatabasePartition;
 import com.att.research.mdbc.MDBCUtils;
 import com.att.research.mdbc.Range;
+import com.att.research.mdbc.configurations.NodeConfiguration;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 
@@ -33,33 +34,17 @@ public class CreatePartition {
             description = "Print the help message")
     private boolean help = false;
 
-    private DatabasePartition partition;
+    NodeConfiguration config;
 
     public CreatePartition(){
     }
 
-    Set<Range> toRanges(String tables){
-        Set<Range> newRange = new HashSet<>();
-        String[] tablesArray=tables.split(",");
-        for(String table: tablesArray) {
-           newRange.add(new Range(table));
-        }
-        return newRange;
-    }
-
     public void convert(){
-        partition = new DatabasePartition(toRanges(tables), titIndex, titTable, partitionId, null) ;
+        config = new NodeConfiguration(tables,titIndex,titTable,partitionId,"test","");
     }
 
     public void saveToFile(){
-        try {
-            String serialized = partition.toJson();
-            MDBCUtils.saveToFile(serialized,file,LOG);
-        } catch (IOException e) {
-            e.printStackTrace();
-            // Exit with error
-            System.exit(1);
-        }
+        config.saveToFile(file);
     }
 
     public static void main(String[] args) {

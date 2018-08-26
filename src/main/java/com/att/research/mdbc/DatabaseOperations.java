@@ -1,7 +1,10 @@
 package com.att.research.mdbc;
 
+import com.att.research.logging.EELFLoggerDelegate;
+import com.att.research.mdbc.mixins.CassandraMixin;
 import org.onap.music.datastore.PreparedQueryObject;
 import org.onap.music.main.MusicCore;
+import org.onap.music.main.ReturnType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +61,7 @@ public class DatabaseOperations {
      * @param newPartition partition to which the application table is assigned
      * @param lockId if the lock for this key is already hold, this is the id of that lock. May be <code>null</code> if lock is not hold for the corresponding key
      */
-    public static void updatePartitionToTable(String namespace, String tableToPartitionTableName, String table, String newPartition, String lockId){
+    public static void updateTableToPartition(String namespace, String tableToPartitionTableName, String table, String newPartition, String lockId){
         final String primaryKey = getTableToPartitionPrimaryKey(namespace,tableToPartitionTableName,table);
         PreparedQueryObject query = new PreparedQueryObject();
         StringBuilder update = new StringBuilder("UPDATE ")
@@ -130,12 +133,13 @@ public class DatabaseOperations {
     public static void updateRedoRow(String namespace, String partitionInfoTableName, String partitionId, RedoRow newTitRow, String owner, String lockId){
         final String primaryKey = getTableToPartitionPrimaryKey(namespace,partitionInfoTableName,partitionId);
         PreparedQueryObject query = new PreparedQueryObject();
+        String newOwner = (owner==null)?"":owner;
         StringBuilder update = new StringBuilder("UPDATE ")
                 .append(namespace)
                 .append('.')
                 .append(partitionInfoTableName)
                 .append(" SET currentowner='")
-                .append(owner)
+                .append(newOwner)
                 .append("', latesttitindex=")
                 .append(newTitRow.getRedoRowIndex())
                 .append(", latesttittable='")
@@ -223,5 +227,108 @@ public class DatabaseOperations {
         query.appendQueryString(insert.toString());
         MusicCore.criticalPut(namespace,titTableName,id,query,null,null);
         return id;
+    }
+
+    	/**
+	 * This function creates the TransactionInformation table. It contain information related
+	 * to the transactions happening in a given partition.
+	 * 	 * The schema of the table is
+	 * 		* Id, uiid.
+	 * 		* Partition, uuid id of the partition
+	 * 		* LatestApplied, int indicates which values from the redologtable wast the last to be applied to the data tables
+	 *		* Applied: boolean, indicates if all the values in this redo log table where already applied to data tables
+	 *		* Redo: list of uiids associated to the Redo Records Table
+	 *
+	 */
+	public static void CreateTransactionInformationTable( String musicNamespace, String transactionInformationTableName) {
+		String tableName = transactionInformationTableName;
+		String priKey = "id";
+		StringBuilder fields = new StringBuilder();
+		fields.append("id uuid, ");
+		fields.append("partition uuid, ");
+		fields.append("latestapplied int, ");
+		fields.append("applied boolean, ");
+		//TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
+		fields.append("redo list<frozen<tuple<text,tuple<text,varint>>>> ");
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	/**
+	 * This function creates the RedoRecords table. It contain information related to each transaction committed
+	 * 	* LeaseId: id associated with the lease, text
+	 * 	* LeaseCounter: transaction number under this lease, bigint \TODO this may need to be a varint later
+	 *  * TransactionDigest: text that contains all the changes in the transaction
+	 */
+	public static void CreateRedoRecordsTable(int redoTableNumber, String musicNamespace, String redoRecordTableName) {
+		String tableName = redoRecordTableName;
+		if(redoTableNumber >= 0) {
+			StringBuilder table = new StringBuilder();
+			table.append(tableName);
+			table.append("-");
+			table.append(Integer.toString(redoTableNumber));
+			tableName=table.toString();
+		}
+		String priKey = "leaseid,leasecounter";
+		StringBuilder fields = new StringBuilder();
+		fields.append("leaseid text, ");
+		fields.append("leasecounter varint, ");
+		fields.append("transactiondigest text ");//notice lack of ','
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	/**
+	 * This function creates the Table To Partition table. It contain information related to
+	 */
+	public static void CreateTableToPartitionTable(String musicNamespace, String tableToPartitionTableName) {
+		String tableName = tableToPartitionTableName;
+		String priKey = "tablename";
+		StringBuilder fields = new StringBuilder();
+		fields.append("tablename text, ");
+		fields.append("partition uuid, ");
+		fields.append("previouspartitions set<uuid> ");
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	public static void CreatePartitionInfoTable(String musicNamespace, String partitionInformationTableName) {
+		String tableName = partitionInformationTableName;
+		String priKey = "partition";
+		StringBuilder fields = new StringBuilder();
+		fields.append("partition uuid, ");
+		fields.append("latesttittable text, ");
+		fields.append("latesttitindex uuid, ");
+		fields.append("tables set<text>, ");
+		fields.append("replicationfactor int, ");
+		fields.append("currentowner text");
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+	public static void CreateRedoHistoryTable(String musicNamespace, String redoHistoryTableName) {
+		String tableName = redoHistoryTableName;
+		String priKey = "partition,redotable,redoindex";
+		StringBuilder fields = new StringBuilder();
+		fields.append("partition uuid, ");
+		fields.append("redotable text, ");
+		fields.append("redoindex uuid, ");
+        //TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
+		fields.append("previousredo set<frozen<tuple<text,uuid>>>");
+		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
+		executeMusicWriteQuery(cql);
+	}
+
+    /**
+     * This method executes a write query in Music
+     * @param cql the CQL to be sent to Cassandra
+     */
+    protected static void executeMusicWriteQuery(String cql) {
+        PreparedQueryObject pQueryObject = new PreparedQueryObject();
+        pQueryObject.appendQueryString(cql);
+        ReturnType rt = MusicCore.eventualPut(pQueryObject);
+        if (rt.getResult().getResult().toLowerCase().equals("failure")) {
+            throw new RuntimeException("Music query failed");
+        }
     }
 }
