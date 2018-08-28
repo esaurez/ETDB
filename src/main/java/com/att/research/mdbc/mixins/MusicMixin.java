@@ -10,14 +10,15 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import com.att.research.mdbc.LockId;
 import org.json.JSONObject;
 import org.onap.music.exceptions.MusicLockingException;
-import org.onap.music.main.MusicCore;
 
 import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.mdbc.DatabasePartition;
 import com.att.research.mdbc.Range;
 import com.att.research.mdbc.TableInfo;
+import org.onap.music.main.MusicPureCassaCore;
 
 /**
 
@@ -152,12 +153,12 @@ public class MusicMixin implements MusicInterface {
 	    }
 	  }
 	
-	public static void releaseZKLocks(Set<String> lockIds) {
-		for(String lockId: lockIds) {
+	public static void releaseZKLocks(Set<LockId> lockIds) {
+		for(LockId lockId: lockIds) {
 			System.out.println("Releasing lock: "+lockId);
 			try {
-				MusicCore.voluntaryReleaseLock(lockId);
-				MusicCore.destroyLockRef(lockId);
+				MusicPureCassaCore.voluntaryReleaseLock(lockId.getFullyQualifiedLockKey(),lockId.getLockReference());
+				MusicPureCassaCore.destroyLockRef(lockId.getFullyQualifiedLockKey(),lockId.getLockReference());
 			} catch (MusicLockingException e) {
 				e.printStackTrace();
 			}

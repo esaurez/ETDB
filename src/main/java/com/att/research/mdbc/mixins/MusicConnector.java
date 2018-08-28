@@ -8,8 +8,6 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 
-import org.onap.music.main.MusicCore;
-
 import com.att.research.logging.EELFLoggerDelegate;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.HostDistance;
@@ -17,6 +15,7 @@ import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
+import org.onap.music.main.MusicPureCassaCore;
 
 /**
  * This class allows for management of the Cassandra Cluster and Session objects.
@@ -71,7 +70,7 @@ public class MusicConnector {
 	}
 	
 	private void connectToMultipleAddresses(String address) {
-		MusicCore.getDSHandle(address);
+		MusicPureCassaCore.getDSHandle(address);
 	/*
 	PoolingOptions poolingOptions =
 		new PoolingOptions()

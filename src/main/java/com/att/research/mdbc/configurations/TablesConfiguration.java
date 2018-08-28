@@ -6,6 +6,9 @@ import com.att.research.mdbc.DatabaseOperations;
 import com.att.research.mdbc.RedoRow;
 import com.att.research.mdbc.mixins.CassandraMixin;
 import com.google.gson.Gson;
+import org.onap.music.datastore.PreparedQueryObject;
+import org.onap.music.exceptions.MusicServiceException;
+import org.onap.music.main.MusicPureCassaCore;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -20,6 +23,8 @@ public class TablesConfiguration {
 
     private transient static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(TablesConfiguration.class);
     private List<PartitionInformation> partitions;
+    private String internalNamespace;
+    private int internalReplicationFactor;
     private String musicNamespace;
     private String tableToPartitionName;
     private String partitionInformationTableName;
@@ -35,6 +40,8 @@ public class TablesConfiguration {
      * @apiNote This function assumes that when used, there is not associated redo history in the tables to the tables that are going to be managed by this configuration file
      */
     public List<NodeConfiguration> initializeAndCreateNodeConfigurations() throws MDBCServiceException {
+        initInternalNamespace();
+        DatabaseOperations.createNamespace(musicNamespace, internalReplicationFactor);
         List<NodeConfiguration> nodeConfigs = new ArrayList<>();
         String ttpName = (tableToPartitionName==null || tableToPartitionName.isEmpty())?CassandraMixin.TABLE_TO_PARTITION_TABLE_NAME:tableToPartitionName;
         DatabaseOperations.CreateTableToPartitionTable(musicNamespace,ttpName);
@@ -83,6 +90,21 @@ public class TablesConfiguration {
             nodeConfigs.add(new NodeConfiguration(String.join(",",partitionInfo.tables),titIndex,titTableName,partitionId,sqlDatabaseName,partitionInfo.owner,redoRecordsName));
         }
         return nodeConfigs;
+    }
+
+    private void initInternalNamespace() throws MDBCServiceException {
+        DatabaseOperations.createNamespace(internalNamespace,internalReplicationFactor);
+        StringBuilder createKeysTableCql = new StringBuilder("CREATE TABLE ")
+        .append(internalNamespace)
+        .append(".unsynced_keys (key text PRIMARY KEY);");
+        PreparedQueryObject queryObject = new PreparedQueryObject();
+        queryObject.appendQueryString(createKeysTableCql.toString());
+        try {
+            MusicPureCassaCore.createTable(internalNamespace,"unsynced_keys", queryObject,"critical");
+        } catch (MusicServiceException e) {
+            logger.error("Error creating unsynced keys table" );
+            throw new MDBCServiceException("Error creating unsynced keys table");
+        }
     }
 
     public static TablesConfiguration readJsonFromFile(String filepath) throws FileNotFoundException {
