@@ -46,6 +46,14 @@ public class MdbcServer {
       description = "Port the server should bind")
   private int port;
 
+  @Parameter(names = { "-s", "--user" }, required = true,
+      description = "Mysql usr")
+  private String user;
+
+  @Parameter(names = { "-a", "--pass" }, required = true,
+      description = "Mysql password")
+  private String password;
+
   final private Serialization serialization = Serialization.PROTOBUF;
 
   @Parameter(names = { "-h", "-help", "--help" }, help = true,
@@ -66,8 +74,8 @@ public class MdbcServer {
     	config = NodeConfiguration.readJsonFromFile(configurationFile);
     	//\TODO Add configuration file with Server Info
     	Properties connectionProps = new Properties();
-    	connectionProps.put("user", "root");
-    	connectionProps.put("password", "mysqltest");
+    	connectionProps.put("user", user);
+    	connectionProps.put("password", password);
     	MdbcServerLogic meta = new MdbcServerLogic(url,connectionProps,config);
     	LocalService service = new LocalService(meta);
 
