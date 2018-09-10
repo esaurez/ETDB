@@ -17,6 +17,7 @@ import java.util.UUID;
 
 import com.att.research.mdbc.*;
 import org.json.JSONObject;
+import org.onap.music.datastore.CassaLockStore;
 import org.onap.music.datastore.PreparedQueryObject;
 import org.onap.music.exceptions.MusicLockingException;
 import org.onap.music.exceptions.MusicQueryException;
@@ -1033,7 +1034,7 @@ public class CassandraMixin implements MusicInterface {
         return query;
     }
 
-    protected String createAndAssignLock(String fullyQualifiedKey, DatabasePartition partition) throws MDBCServiceException {
+    protected String createAndAssignLock(String fullyQualifiedKey, DatabasePartition partition, String keyspace, String table, String key) throws MDBCServiceException {
 	    String lockId;
         lockId = MusicPureCassaCore.createLockReference(fullyQualifiedKey);
         ReturnType lockReturn;
@@ -1048,6 +1049,36 @@ public class CassandraMixin implements MusicInterface {
         } catch (MusicQueryException e) {
             logger.error(EELFLoggerDelegate.errorLogger, "Error in executing query music, when locking key: "+fullyQualifiedKey);
             throw new MDBCServiceException("Error in executing query music, when locking: "+fullyQualifiedKey);
+        }
+        //\TODO this is wrong, we should have a better way to obtain a lock forcefully, clean the queue and obtain the lock
+        if(lockReturn.getResult().compareTo(ResultType.SUCCESS) != 0 ) {
+            try {
+                MusicPureCassaCore.releaseLock(fullyQualifiedKey,lockId,false);
+                CassaLockStore lockingServiceHandle = MusicPureCassaCore.getLockingServiceHandle();
+                UUID uuid = lockingServiceHandle.peekLockQueue(keyspace, table, key);
+                String uuidStr = uuid.toString();
+                while(uuidStr != lockId) {
+                    MusicPureCassaCore.releaseLock(fullyQualifiedKey, uuid.toString(), false);
+                    try {
+                        uuid = lockingServiceHandle.peekLockQueue(keyspace, table, key);
+                        uuidStr = uuid.toString();
+                    } catch(NullPointerException e){
+                       //Ignore null pointer exception
+                        lockId = MusicPureCassaCore.createLockReference(fullyQualifiedKey);
+                        uuidStr = lockId;
+                    }
+                }
+                lockReturn = MusicPureCassaCore.acquireLock(fullyQualifiedKey,lockId);
+
+            } catch (MusicLockingException e) {
+                throw new MDBCServiceException("Could not lock the corresponding lock");
+            } catch (MusicServiceException e) {
+                logger.error(EELFLoggerDelegate.errorLogger, "Error in music, when locking key: "+fullyQualifiedKey);
+                throw new MDBCServiceException("Error in music, when locking: "+fullyQualifiedKey);
+            } catch (MusicQueryException e) {
+                logger.error(EELFLoggerDelegate.errorLogger, "Error in executing query music, when locking key: "+fullyQualifiedKey);
+                throw new MDBCServiceException("Error in executing query music, when locking: "+fullyQualifiedKey);
+            }
         }
         if(lockReturn.getResult().compareTo(ResultType.SUCCESS) != 0 ) {
             throw new MDBCServiceException("Could not lock the corresponding lock");
@@ -1110,7 +1141,7 @@ public class CassandraMixin implements MusicInterface {
 		//0. See if reference to lock was already created
 		String lockId = partition.getLockId();
 		if(lockId == null || lockId.isEmpty()) {
-            lockId = createAndAssignLock(fullyQualifiedTitKey,partition);
+            lockId = createAndAssignLock(fullyQualifiedTitKey,partition,music_ns,transactionInformationTableName,TITIndex);
 		}
 
 		String commitId;

@@ -1,7 +1,7 @@
 {
   "partitions" : [
     {
-      "tables":["table10"],
+      "tables":["table11"],
       "owner":"",
       "titTableName":"transactioninformation",
       "rrtTableName":"redorecords",

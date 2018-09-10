@@ -2,13 +2,13 @@
   "sqlDatabaseName": "test",
   "partition": {
     "transactionInformationTable": "transactioninformation",
-    "transactionInformationIndex": "88447a73-9e9e-4422-b8c3-3b7557f2608e",
+    "transactionInformationIndex": "259a7a7c-f741-44ae-8d6e-227a02ddc96e",
     "redoRecordsTable": "redorecords",
-    "partitionId": "29aecfb4-d8c6-4edb-b908-46b4e1b6c246",
+    "partitionId": "ad766447-1adf-4800-aade-9f31a356ab4b",
     "lockId": "",
     "ranges": [
       {
-        "table": "table10"
+        "table": "table11"
       }
     ]
   },

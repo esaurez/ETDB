@@ -94,7 +94,7 @@ public class TablesConfiguration {
 
     private void initInternalNamespace() throws MDBCServiceException {
         DatabaseOperations.createNamespace(internalNamespace,internalReplicationFactor);
-        StringBuilder createKeysTableCql = new StringBuilder("CREATE TABLE ")
+        StringBuilder createKeysTableCql = new StringBuilder("CREATE TABLE IF NOT EXISTS ")
         .append(internalNamespace)
         .append(".unsynced_keys (key text PRIMARY KEY);");
         PreparedQueryObject queryObject = new PreparedQueryObject();
