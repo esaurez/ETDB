@@ -77,7 +77,7 @@ public class MdbcStateManager implements StateManager{
     protected void initSqlDatabase() throws MDBCServiceException {
         try {
             //\TODO: pass the driver as a variable
-            Class.forName("com.mysql.jdbc.Driver");
+            Class.forName("org.mariadb.jdbc.Driver");
         }
         catch (ClassNotFoundException e) {
             logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
