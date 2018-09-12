@@ -78,6 +78,7 @@ public class MdbcConnection implements Connection {
 		}
 		this.progressKeeper = progressKeeper;
 		this.partition = partition;
+        logger.debug("Mdbc connection created with id: "+id);
 	}
 
 	@Override
@@ -170,10 +171,13 @@ public class MdbcConnection implements Connection {
 
 	@Override
 	public void close() throws SQLException {
+	    logger.debug("Closing mdbc connection with id:"+id);
 		if (mgr != null) {
+            logger.debug("Closing mdbc manager with id:"+id);
 			mgr.close();
 		}
 		if (conn != null && !conn.isClosed()) {
+            logger.debug("Closing jdbc from mdbc with id:"+id);
 			conn.close();
 			logger.debug("Connection was closed for id:" + id);
 		}
