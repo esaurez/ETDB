@@ -173,7 +173,10 @@ public class MdbcConnection implements Connection {
 		if (mgr != null) {
 			mgr.close();
 		}
-		conn.close();
+		if (conn != null && !conn.isClosed()) {
+			conn.close();
+			logger.debug("Connection was closed for id:" + id);
+		}
 	}
 
 	@Override

@@ -101,7 +101,9 @@ public class MdbcStateManager implements StateManager{
         if(mdbcConnections.containsKey(connectionId)) {
             transactionInfo.deleteTxProgress(connectionId);
             try {
-                mdbcConnections.get(connectionId).close();
+                Connection conn = mdbcConnections.get(connectionId);
+                if(conn!=null)
+                    conn.close();
             } catch (SQLException e) {
                 logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
             }
