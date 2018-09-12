@@ -311,7 +311,7 @@ NEW.field refers to the new value
 		keyJson.append(")");
 		//\TODO check if using mysql driver, so instead check the exception
 		StringBuilder sb = new StringBuilder()
-		  .append("CREATE TRIGGER IF NOT EXISTS ")		// IF NOT EXISTS not supported by MySQL!
+		  .append("CREATE TRIGGER ")		// IF NOT EXISTS not supported by MySQL!
 		  .append(String.format("%s_%s", op.substring(0, 1), tableName))
 		  .append(" AFTER ")
 		  .append(op)
@@ -521,13 +521,13 @@ NEW.field refers to the new value
 
 	private OperationType toOpEnum(String operation) throws NoSuchFieldException {
 		switch (operation.toLowerCase()) {
-			case "insert":
+			case "I":
 				return OperationType.INSERT;
-			case "delete":
+			case "D":
 				return OperationType.DELETE;
-			case "update":
+			case "U":
 				return OperationType.UPDATE;
-			case "select":
+			case "S":
 				return OperationType.SELECT;
 			default:
 				logger.error(EELFLoggerDelegate.errorLogger,"Invalid operation selected: ["+operation+"]");
