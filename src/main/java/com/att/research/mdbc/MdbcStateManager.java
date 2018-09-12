@@ -100,6 +100,11 @@ public class MdbcStateManager implements StateManager{
         //\TODO check if there is a race condition
         if(mdbcConnections.containsKey(connectionId)) {
             transactionInfo.deleteTxProgress(connectionId);
+            try {
+                mdbcConnections.get(connectionId).close();
+            } catch (SQLException e) {
+                logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.GENERALSERVICEERROR);
+            }
             mdbcConnections.remove(connectionId);
         }
     }
