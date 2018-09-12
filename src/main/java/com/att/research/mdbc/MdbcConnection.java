@@ -38,7 +38,7 @@ import com.att.research.mdbc.mixins.TxCommitProgress;
  * @author Robert Eby
  */
 public class MdbcConnection implements Connection {
-	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(Driver.class);
+	private static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(MdbcConnection.class);
 	
 	private final String id;			// This is the transaction id, assigned to this connection. There is no need to change the id, if connection is reused
 	private final Connection conn;		// the JDBC Connection to the actual underlying database
@@ -55,12 +55,14 @@ public class MdbcConnection implements Connection {
 		try {
 			this.mgr = new MusicSqlManager(url, c, info, mi);
 		} catch (MDBCServiceException e) {
+		    logger.error("Failure in creating Music SQL Manager");
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw e;
 		}
 		try {
 			this.mgr.setAutoCommit(c.getAutoCommit(),null,null,null);
 		} catch (SQLException e) {
+            logger.error("Failure in autocommit");
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 		}
 
@@ -70,6 +72,7 @@ public class MdbcConnection implements Connection {
 		if ( mgr != null ) try {
 			mgr.synchronizeTables();
 		} catch (QueryException e) {
+		    logger.error("Error syncrhonizing tables");
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 		}
 		else {

@@ -119,7 +119,7 @@ public class MdbcStateManager implements StateManager{
            //\TODO: create function to generate connection outside of open connection and get connection
            try {
                //\TODO: pass the driver as a variable
-               Class.forName("com.mysql.jdbc.Driver");
+               Class.forName("org.mariadb.jdbc.Driver");
            }
            catch (ClassNotFoundException e) {
                // TODO Auto-generated catch block
@@ -167,17 +167,18 @@ public class MdbcStateManager implements StateManager{
     	MdbcConnection newConnection;
         try {
             //TODO: pass the driver as a variable
-            Class.forName("com.mysql.jdbc.Driver");
+            Class.forName("org.mariadb.jdbc.Driver");
         }
         catch (ClassNotFoundException e) {
             // TODO Auto-generated catch block
-            e.printStackTrace();
+            logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.QUERYERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
         }
 
         //Create connection to local SQL DB
 		try {
 			sqlConnection = DriverManager.getConnection(this.url+"/"+this.sqlDatabase, this.info);
 		} catch (SQLException e) {
+		    logger.error("sql connection was not created correctly");
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.QUERYERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
 			sqlConnection = null;
 		}
