@@ -126,7 +126,7 @@ public class MySQLMixin implements DBInterface {
 		return this.dbName;
 	}
 	/**
-	 * Get a set of the table names in the database. The table names should be returned in UPPER CASE.
+	 * Get a set of the table names in the database.
 	 * @return the set
 	 */
 	@Override
@@ -137,7 +137,7 @@ public class MySQLMixin implements DBInterface {
 			Statement stmt = dbConnection.createStatement();
 			ResultSet rs = stmt.executeQuery(sql);
 			while (rs.next()) {
-				String s = rs.getString("TABLE_NAME").toUpperCase();
+				String s = rs.getString("TABLE_NAME");
 				set.add(s);
 			}
 			stmt.close();
