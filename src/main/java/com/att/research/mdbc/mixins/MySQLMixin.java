@@ -492,7 +492,7 @@ NEW.field refers to the new value
 			for (String part : parts) {
 				if (set.contains(part.toUpperCase())) {
 					// Found a candidate table name in the SELECT SQL -- update this table
-					msm.readDirtyRowsAndUpdateDb(part);
+					//msm.readDirtyRowsAndUpdateDb(part);
 				}
 			}
 		}
