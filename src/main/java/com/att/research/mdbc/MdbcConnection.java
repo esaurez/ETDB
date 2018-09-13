@@ -121,13 +121,22 @@ public class MdbcConnection implements Connection {
 	public void setAutoCommit(boolean autoCommit) throws SQLException {
 		boolean b = conn.getAutoCommit();
 		if (b != autoCommit) {
+		    if(progressKeeper!=null) progressKeeper.commitRequested(id);
 			try {
 				mgr.setAutoCommit(autoCommit,id,progressKeeper,partition);
+				if(progressKeeper!=null)
+                    progressKeeper.setMusicDone(id);
 			} catch (MDBCServiceException e) {
 				logger.error(EELFLoggerDelegate.errorLogger, "Commit to music failed", AppMessages.UNKNOWNERROR, ErrorTypes.UNKNOWN, ErrorSeverity.FATAL);
 				throw new SQLException("Failure commiting to MUSIC");
 			}
 			conn.setAutoCommit(autoCommit);
+            if(progressKeeper!=null) {
+                progressKeeper.setSQLDone(id);
+            }
+            if(progressKeeper!=null&&progressKeeper.isComplete(id)){
+                progressKeeper.reinitializeTxProgress(id);
+            }
 		}
 	}
 
@@ -163,6 +172,9 @@ public class MdbcConnection implements Connection {
 			progressKeeper.setSQLDone(id);
 		}
 		//MusicMixin.releaseZKLocks(MusicMixin.currentLockMap.get(getConnID()));
+        if(progressKeeper.isComplete(id)){
+		    progressKeeper.reinitializeTxProgress(id);
+        }
 	}
 
 	@Override

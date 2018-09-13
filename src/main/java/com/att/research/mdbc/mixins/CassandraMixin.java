@@ -1153,6 +1153,7 @@ public class CassandraMixin implements MusicInterface {
             logger.error(EELFLoggerDelegate.errorLogger, "Tx with id "+txId+" was not created in the TxCommitProgress ");
             throw new MDBCServiceException("Tx with id "+txId+" was not created in the TxCommitProgress ");
         }
+        //Add creation type of transaction digest
 
 		//1. Push new row to RRT and obtain its index
         pushRowToRRT(lockId, commitId, transactionDigest);

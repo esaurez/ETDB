@@ -22,9 +22,9 @@ public class StagingTable implements Serializable{
 		operations = new HashMap<>();
 	}
 	
-	synchronized public void addOperation(String key, OperationType type, JSONObject oldVal, JSONObject newVal) {
+	synchronized public void addOperation(String key, OperationType type, String oldVal, String newVal) {
 		if(!operations.containsKey(key)) {
-			operations.put(key, new LinkedList<Operation>());
+			operations.put(key, new LinkedList<>());
 		}
 		operations.get(key).add(new Operation(type,newVal,oldVal));
 	}

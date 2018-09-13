@@ -25,10 +25,15 @@ public class MDBCUtils {
     public static String toString( Serializable o ) throws IOException {
     	//TODO We may want to also compress beside serialize
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream( baos );
-        oos.writeObject( o );
-        oos.close();
-        return Base64.getEncoder().encodeToString(baos.toByteArray()); 
+        try {
+            ObjectOutputStream oos = new ObjectOutputStream(baos);
+            oos.writeObject(o);
+            oos.close();
+            return Base64.getEncoder().encodeToString(baos.toByteArray());
+        }
+        finally{
+            baos.close();
+        }
     }
     
     public static String toString( JSONObject o) throws IOException {

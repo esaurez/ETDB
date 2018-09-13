@@ -147,6 +147,7 @@ final class CommitProgress{
 	}
 	
 	public synchronized void reinitialize() {
+		commitId = null;
 		redoRecordId=null;
 		commitRequested = false;
 		SQLDone = false;

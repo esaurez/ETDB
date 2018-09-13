@@ -188,7 +188,7 @@ mysql> describe tables;
 		TableInfo ti = tables.get(tableName);
 		if (ti == null) {
 			try {
-				String tbl = tableName.toUpperCase();
+				String tbl = tableName;//.toUpperCase();
 				String sql = "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='"+tbl+"'";
 				ResultSet rs = executeSQLRead(sql);
 				if (rs != null) {
@@ -521,13 +521,13 @@ NEW.field refers to the new value
 
 	private OperationType toOpEnum(String operation) throws NoSuchFieldException {
 		switch (operation.toLowerCase()) {
-			case "I":
+			case "i":
 				return OperationType.INSERT;
-			case "D":
+			case "d":
 				return OperationType.DELETE;
-			case "U":
+			case "u":
 				return OperationType.UPDATE;
-			case "S":
+			case "s":
 				return OperationType.SELECT;
 			default:
 				logger.error(EELFLoggerDelegate.errorLogger,"Invalid operation selected: ["+operation+"]");
@@ -537,7 +537,7 @@ NEW.field refers to the new value
 	}
 	/**
 	 * Copy data that is in transaction table into music interface
-	 * @param keysUpdated
+	 * @param transactionDigests
 	 * @throws NoSuchFieldException 
 	 */
 	private void updateStagingTable(Map<Range,StagingTable> transactionDigests) throws NoSuchFieldException {
@@ -552,8 +552,9 @@ NEW.field refers to the new value
 				String op   = rs.getString("OP");
 				OperationType opType = toOpEnum(op);
 				String tbl  = rs.getString("TABLENAME");
-				JSONObject keydata = new JSONObject(new JSONTokener(rs.getString("KEYDATA")));
-				JSONObject newRow  = new JSONObject(new JSONTokener(rs.getString("NEWROWDATA")));
+				String keydataStr = rs.getString("KEYDATA");
+				String newRowStr = rs.getString("NEWROWDATA");
+				JSONObject newRow  = new JSONObject(new JSONTokener(newRowStr));
 				String musicKey;
 				TableInfo ti = getTableInfo(tbl);
 				if (!ti.hasKey()) {
@@ -562,6 +563,7 @@ NEW.field refers to the new value
 						//\TODO Improve the generation of primary key, it should be generated using 
 						// the actual columns, otherwise performance when doing range queries are going 
 						// to be even worse (see the else bracket down)
+                        //
 						musicKey = msm.generateUniqueKey();
 					} else {
 						//get key from data
@@ -581,7 +583,7 @@ NEW.field refers to the new value
 				if(!transactionDigests.containsKey(range)) {
 					transactionDigests.put(range, new StagingTable());
 				}
-				transactionDigests.get(range).addOperation(musicKey, opType, keydata, newRow);
+				transactionDigests.get(range).addOperation(musicKey, opType, keydataStr, newRow.toString());
 				rows.add(ix);
 			}
 			rs.getStatement().close();
