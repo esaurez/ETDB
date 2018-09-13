@@ -144,7 +144,7 @@ public class MySQLMixin implements DBInterface {
 		} catch (SQLException e) {
 			logger.error(EELFLoggerDelegate.errorLogger,"getSQLTableSet: "+e);
 		}
-		logger.info(EELFLoggerDelegate.applicationLogger,"getSQLTableSet returning: "+ set);
+		logger.debug(EELFLoggerDelegate.applicationLogger,"getSQLTableSet returning: "+ set);
 		return set;
 	}
 /*
@@ -449,7 +449,7 @@ NEW.field refers to the new value
 	 */
 	@Override
 	public ResultSet executeSQLRead(String sql) {
-		logger.info(EELFLoggerDelegate.applicationLogger,"executeSQLRead");
+		logger.debug(EELFLoggerDelegate.applicationLogger,"executeSQLRead");
 		logger.debug("Executing SQL read:"+ sql);
 		ResultSet rs = null;
 		try {
@@ -467,7 +467,7 @@ NEW.field refers to the new value
 	 * @throws SQLException if an underlying JDBC method throws an exception
 	 */
 	protected void executeSQLWrite(String sql) throws SQLException {
-		logger.info(EELFLoggerDelegate.applicationLogger, "Executing SQL write:"+ sql);
+		logger.debug(EELFLoggerDelegate.applicationLogger, "Executing SQL write:"+ sql);
 		
 		Statement stmt = dbConnection.createStatement();
 		stmt.execute(sql);

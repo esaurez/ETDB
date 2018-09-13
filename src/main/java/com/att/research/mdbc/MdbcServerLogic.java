@@ -144,7 +144,7 @@ public class MdbcServerLogic extends JdbcMeta{
     public void commit(ConnectionHandle ch) {
         try {
             super.commit(ch);
-            logger.info("connection commited with id {}", ch.id);
+            logger.debug("connection commited with id {}", ch.id);
         } catch (Exception err ) {
             logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
             throw(err);
@@ -158,7 +158,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		StatementHandle h;
 		try {
 			h = super.prepare(ch, sql, maxRowCount);
-			logger.info("prepared statement {}", h);
+			logger.debug("prepared statement {}", h);
 		} catch (Exception e ) {
 			logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(e);
@@ -172,7 +172,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		ExecuteResult e;
 		try {
 			e = super.prepareAndExecute(h, sql, maxRowCount,maxRowsInFirstFrame,callback);
-			logger.info("prepare and execute statement {}", h);
+			logger.debug("prepare and execute statement {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -186,7 +186,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		ExecuteBatchResult e;
 		try {
 			e = super.prepareAndExecuteBatch(h, sqlCommands);
-			logger.info("prepare and execute batch statement {}", h);
+			logger.debug("prepare and execute batch statement {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -200,7 +200,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		ExecuteBatchResult e;
 		try {
 			e = super.executeBatch(h, parameterValues);
-			logger.info("execute batch statement {}", h);
+			logger.debug("execute batch statement {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -214,7 +214,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		Frame f;
 		try {
 			f = super.fetch(h, offset, fetchMaxRowCount);
-			logger.info("fetch statement {}", h);
+			logger.debug("fetch statement {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -228,7 +228,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		ExecuteResult e;
 		try {
 			e = super.execute(h, parameterValues, maxRowCount);
-			logger.info("fetch statement {}", h);
+			logger.debug("fetch statement {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -242,7 +242,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		ExecuteResult e;
 		try {
 			e = super.execute(h, parameterValues, maxRowsInFirstFrame);
-			logger.info("fetch statement {}", h);
+			logger.debug("fetch statement {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -255,7 +255,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		StatementHandle h;
 		try {
 			h = super.createStatement(ch);
-			logger.info("create statement {}", h);
+			logger.debug("create statement {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -267,7 +267,7 @@ public class MdbcServerLogic extends JdbcMeta{
 	public void closeStatement(StatementHandle h) {
 		try {
 			super.closeStatement(h);
-			logger.info("statement closed {}", h);
+			logger.debug("statement closed {}", h);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -284,7 +284,7 @@ public class MdbcServerLogic extends JdbcMeta{
 	public void rollback(ConnectionHandle ch) {
 		try {
 			super.rollback(ch);
-			logger.info("connection rollback with id {}", ch.id);
+			logger.debug("connection rollback with id {}", ch.id);
 		} catch (Exception err ) {
 			logger.error(EELFLoggerDelegate.errorLogger, err.getMessage(), AppMessages.QUERYERROR, ErrorTypes.QUERYERROR, ErrorSeverity.CRITICAL);
 			throw(err);
@@ -303,7 +303,7 @@ public class MdbcServerLogic extends JdbcMeta{
                     doomed.close();
                 }
             } catch (Throwable t) {
-                logger.info("Exception thrown while expiring connection {}", connectionId, t);
+                logger.warn("Exception thrown while expiring connection {}", connectionId, t);
             }
         }
     }

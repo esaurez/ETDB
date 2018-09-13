@@ -405,7 +405,7 @@ public class CassandraMixin implements MusicInterface {
 			}
 		}
 		String cql = String.format("DELETE FROM %s.DIRTY_%s WHERE %s;", music_ns, tableName, cols.toString());
-		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql);
+		logger.debug(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql);
 		pQueryObject.appendQueryString(cql);
         ReturnType rt = MusicPureCassaCore.eventualPut(pQueryObject);
 		if(rt.getResult().getResult().toLowerCase().equals("failure")) {
@@ -429,7 +429,7 @@ public class CassandraMixin implements MusicInterface {
 	public List<Map<String,Object>> getDirtyRows(TableInfo ti, String tableName) {
 		String cql = String.format("SELECT * FROM %s.DIRTY_%s WHERE REPLICA__=?;", music_ns, tableName);
 		ResultSet results = null;
-		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql);
+		logger.debug(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql);
 		
 		/*Session sess = getMusicSession();
 		PreparedStatement ps = getPreparedStatementFromCache(cql);
@@ -812,7 +812,7 @@ public class CassandraMixin implements MusicInterface {
 
 		if (in_progress.contains(rowid)) {
 			// This call to updateDirtyRowAndEntityTableInMusic() was called as a result of a Cassandra -> H2 update; ignore
-			logger.info(EELFLoggerDelegate.applicationLogger, "updateDirtyRowAndEntityTableInMusic: bypassing MUSIC update on "+rowid);
+			logger.debug(EELFLoggerDelegate.applicationLogger, "updateDirtyRowAndEntityTableInMusic: bypassing MUSIC update on "+rowid);
 			
 		} else {
 			// Update local MUSIC node. Note: in Cassandra you can insert again on an existing key..it becomes an update
@@ -878,7 +878,7 @@ public class CassandraMixin implements MusicInterface {
 	 * @param cql the CQL to be sent to Cassandra
 	 */
 	protected void executeMusicWriteQuery(String cql) {
-		logger.info(EELFLoggerDelegate.applicationLogger, "Executing MUSIC write:"+ cql);
+		logger.debug(EELFLoggerDelegate.applicationLogger, "Executing MUSIC write:"+ cql);
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		pQueryObject.appendQueryString(cql);
 		ReturnType rt = MusicPureCassaCore.eventualPut(pQueryObject);
@@ -899,7 +899,7 @@ public class CassandraMixin implements MusicInterface {
 	 * @return a ResultSet containing the rows returned from the query
 	 */
 	protected ResultSet executeMusicRead(String cql) {
-		logger.info(EELFLoggerDelegate.applicationLogger, "Executing MUSIC write:"+ cql);
+		logger.debug(EELFLoggerDelegate.applicationLogger, "Executing MUSIC write:"+ cql);
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		pQueryObject.appendQueryString(cql);
 		ResultSet results = null;

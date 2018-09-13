@@ -82,7 +82,7 @@ public class MusicSqlManager {
 	public void setAutoCommit(boolean b,String txId, TxCommitProgress progressKeeper, DatabasePartition partition) throws MDBCServiceException {
 		if (b != autocommit) {
 			autocommit = b;
-			logger.info(EELFLoggerDelegate.applicationLogger,"autocommit changed to "+b);
+			logger.debug(EELFLoggerDelegate.applicationLogger,"autocommit changed to "+b);
 			if (b) {
 				// My reading is that turning autoCOmmit ON should automatically commit any outstanding transaction
 				if(txId == null || txId.isEmpty()) {
@@ -126,7 +126,7 @@ public class MusicSqlManager {
 	 */
 	public synchronized void synchronizeTables() throws QueryException {
 			Set<String> set1 = dbi.getSQLTableSet();	// set of tables in the database
-			logger.info(EELFLoggerDelegate.applicationLogger, "synchronizing tables:" + set1);
+			logger.debug(EELFLoggerDelegate.applicationLogger, "synchronizing tables:" + set1);
 			for (String tableName : set1) {
 				// This map will be filled in if this table was previously discovered
 				if (!table_set.contains(tableName) && !dbi.getReservedTblNames().contains(tableName)) {
@@ -140,7 +140,7 @@ public class MusicSqlManager {
 						dbi.createSQLTriggers(tableName);
 						table_set.add(tableName);
 						synchronizeTableData(tableName);
-						logger.info(EELFLoggerDelegate.applicationLogger, "synchronized tables:" +
+						logger.debug(EELFLoggerDelegate.applicationLogger, "synchronized tables:" +
 									table_set.size() + "/" + set1.size() + "tables uploaded");
 					} catch (Exception e) {
 						logger.error(EELFLoggerDelegate.errorLogger, e.getMessage(),AppMessages.UNKNOWNERROR, ErrorSeverity.CRITICAL, ErrorTypes.QUERYERROR);
@@ -209,7 +209,7 @@ public class MusicSqlManager {
 	 * @throws MDBCServiceException 
 	 */
 	public synchronized void commit(String txId, TxCommitProgress progressKeeper, DatabasePartition partition) throws MDBCServiceException {
-		logger.info(EELFLoggerDelegate.applicationLogger, " commit ");
+		logger.debug(EELFLoggerDelegate.applicationLogger, " commit ");
 		// transaction was committed -- add all the updates into the REDO-Log in MUSIC
 		try {
 			mi.commitLog(dbi, partition, transactionDigest, txId, progressKeeper);
@@ -225,7 +225,7 @@ public class MusicSqlManager {
 	 */
 	public synchronized void rollback() {
 		// transaction was rolled back - discard the updates
-		logger.info(EELFLoggerDelegate.applicationLogger, "Rollback");;
+		logger.debug(EELFLoggerDelegate.applicationLogger, "Rollback");;
 		transactionDigest.clear();
 	}
 

@@ -86,7 +86,7 @@ public class Driver implements java.sql.Driver {
 	public Connection connect(String url, Properties info) throws SQLException {
 		if (acceptsURL(url)) {
 			String newurl = rewriteURL(url, info);
-			logger.info(EELFLoggerDelegate.applicationLogger,"URL rewrite: "+url+ " to "+newurl);
+			logger.debug(EELFLoggerDelegate.applicationLogger,"URL rewrite: "+url+ " to "+newurl);
 			java.sql.Driver dr;
 			try {
 				dr = DriverManager.getDriver(newurl);
@@ -146,7 +146,7 @@ public class Driver implements java.sql.Driver {
 
 	@Override
 	public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-		logger.info(EELFLoggerDelegate.applicationLogger,"getPropertyInfo "+url);
+		logger.debug(EELFLoggerDelegate.applicationLogger,"getPropertyInfo "+url);
 		String newurl = rewriteURL(url, info);
 		java.sql.Driver dr = DriverManager.getDriver(newurl);
 		if (dr != null) {
@@ -169,7 +169,7 @@ public class Driver implements java.sql.Driver {
 	}
 
 	private String rewriteURL(String u, Properties info) {
-		logger.info(EELFLoggerDelegate.applicationLogger,"rewriteURL "+u);
+		logger.debug(EELFLoggerDelegate.applicationLogger,"rewriteURL "+u);
 		String db = info.getProperty(Configuration.KEY_DB_MIXIN_NAME, Configuration.DB_MIXIN_DEFAULT);
 		if (db.equals("h2server"))
 			db = "h2";	// uggh! -- special case

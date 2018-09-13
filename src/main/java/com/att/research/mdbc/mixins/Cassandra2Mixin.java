@@ -120,7 +120,7 @@ public class Cassandra2Mixin extends CassandraMixin {
 		//Session sess = getMusicSession();
 		//PreparedStatement ps = getPreparedStatementFromCache(cql);
 		Object[] values = new Object[] { tableName, myId, keys };
-		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + values[0] + " " + values[1] + " " + values[2]);
+		logger.debug(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + values[0] + " " + values[1] + " " + values[2]);
 		
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		pQueryObject.appendQueryString(cql);
@@ -147,7 +147,7 @@ public class Cassandra2Mixin extends CassandraMixin {
 	@Override
 	public List<Map<String,Object>> getDirtyRows(TableInfo ti, String tableName) {
 		String cql = String.format("SELECT keyset FROM %s.%s WHERE tablename = ? AND replica = ?;", music_ns, DIRTY_TABLE);
-		logger.info(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + tableName + " " + myId);
+		logger.debug(EELFLoggerDelegate.applicationLogger,"Executing MUSIC write:"+ cql + " with values " + tableName + " " + myId);
 		
 		PreparedQueryObject pQueryObject = new PreparedQueryObject();
 		pQueryObject.appendQueryString(cql);
