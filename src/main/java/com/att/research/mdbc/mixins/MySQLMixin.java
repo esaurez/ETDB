@@ -559,16 +559,17 @@ NEW.field refers to the new value
 				TableInfo ti = getTableInfo(tbl);
 				if (!ti.hasKey()) {
 					//create music key
-					if (op.startsWith("I")) {
+                    //\TODO fix, this is completely broken
+					//if (op.startsWith("I")) {
 						//\TODO Improve the generation of primary key, it should be generated using 
 						// the actual columns, otherwise performance when doing range queries are going 
 						// to be even worse (see the else bracket down)
                         //
 						musicKey = msm.generateUniqueKey();
-					} else {
+					/*} else {
 						//get key from data
 						musicKey = msm.getMusicKeyFromRowWithoutPrimaryIndexes(tbl,newRow);
-					}
+					}*/
 					newRow.put(msm.getMusicDefaultPrimaryKeyName(), musicKey);
 				}
 				else {
