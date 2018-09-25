@@ -18,15 +18,14 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.att.research.mdbc.Driver;
 
 /**
  * This test tests a copy of data from DB1 to DB2.  It tests the following H2 data types:
  * VARCHAR, VARBINARY, INTEGER, BOOLEAN, DOUBLE, CLOB, TIMESTAMP.
  */
 public class CrossSiteTest extends TestCommon {
-	private static final String DB_CONNECTION1 = Driver.PROXY_PREFIX + "mem:db1";
-	private static final String DB_CONNECTION2 = Driver.PROXY_PREFIX + "mem:db2";
+	private static final String DB_CONNECTION1 = "avatica://" + "mem:db1";
+	private static final String DB_CONNECTION2 = "avatica://" + "mem:db2";
 	private static final String KEYSPACE       = "CrossSite_Test";
 	private final static Logger logger = Logger.getLogger(CrossSiteTest.class);
 

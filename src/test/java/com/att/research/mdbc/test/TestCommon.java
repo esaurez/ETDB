@@ -5,11 +5,10 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import com.att.research.mdbc.Driver;
 import com.att.research.mdbc.mixins.CassandraMixin;
 
 public class TestCommon {
-	public static final String DB_DRIVER   = Driver.class.getName();
+	public static final String DB_DRIVER   = "avatica.Driver";
 	public static final String DB_USER     = "";
 	public static final String DB_PASSWORD = "";
 

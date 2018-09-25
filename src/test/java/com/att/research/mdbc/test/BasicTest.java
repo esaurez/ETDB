@@ -7,14 +7,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import com.att.research.mdbc.Driver;
 
 /**
  * This is a basic test which creates some tables, does a few selects, adn runs some joins.
  * It is mainly intended to make sure that no exceptions are thrown in basic operation.
  */
 public class BasicTest extends TestCommon {
-	private static final String DB_CONNECTION = Driver.PROXY_PREFIX + "mem:db1";
+	private static final String DB_CONNECTION = "avatica://" + "mem:db1";
 	private static final String KEYSPACE      = "Basic_Test";
 
 	//@Test

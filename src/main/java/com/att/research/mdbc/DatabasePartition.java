@@ -17,7 +17,7 @@ import com.google.gson.GsonBuilder;
  * @author Enrique Saurez 
  */
 public class DatabasePartition {
-	private transient static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(Driver.class);
+	private transient static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(DatabasePartition.class);
 
 	private String transactionInformationTable;//Table that currently contains the REDO log for this partition
 	private String transactionInformationIndex;//Index that can be obtained either from

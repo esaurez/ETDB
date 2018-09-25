@@ -9,6 +9,8 @@ public class ArchiveProcess {
 	protected MusicInterface mi;
 	protected DBInterface dbi;
 
+	//TODO: This is a place holder for taking snapshots and moving data from redo record into actual tables
+	
 	/**
 	 * This method is called whenever there is a DELETE on a local SQL table, and should be called by the underlying databases
 	 * triggering mechanism. It updates the MUSIC/Cassandra tables (both dirty bits and actual data) corresponding to the SQL DELETE.

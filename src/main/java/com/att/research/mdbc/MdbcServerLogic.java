@@ -42,7 +42,7 @@ public class MdbcServerLogic extends JdbcMeta{
 		this.ranges = config.partition;
 		this.name = config.nodeName;
 		this.sqlDatabase = config.sqlDatabaseName;
-		this.manager = new MdbcStateManager(Url,info,this.ranges,this.sqlDatabase);
+		this.manager = new StateManager(Url,info,this.ranges,this.sqlDatabase);
 		this.info = info;
         int concurrencyLevel = Integer.parseInt(
                 info.getProperty(ConnectionCacheSettings.CONCURRENCY_LEVEL.key(),
