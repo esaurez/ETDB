@@ -1,4 +1,4 @@
-package com.att.research.mdbc.mixins;
+package com.att.research.mdbc.tables;
 
 import java.io.Serializable;
 
@@ -27,5 +27,9 @@ public final class Operation implements Serializable{
     public JSONObject getOldVal(){
         JSONObject keydata = new JSONObject(new JSONTokener(OLD_VAL));
         return keydata;
+    }
+    
+    public OperationType getOperationType() {
+    	return this.TYPE;
     }
 }

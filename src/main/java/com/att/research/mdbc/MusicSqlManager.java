@@ -13,10 +13,9 @@ import org.json.JSONObject;
 import com.att.research.mdbc.mixins.DBInterface;
 import com.att.research.mdbc.mixins.MixinFactory;
 import com.att.research.mdbc.mixins.MusicInterface;
-import com.att.research.mdbc.mixins.StagingTable;
-import com.att.research.mdbc.mixins.TxCommitProgress;
 import com.att.research.mdbc.mixins.Utils;
-
+import com.att.research.mdbc.tables.StagingTable;
+import com.att.research.mdbc.tables.TxCommitProgress;
 import com.att.research.exceptions.MDBCServiceException;
 import com.att.research.exceptions.QueryException;
 import com.att.research.logging.*;

@@ -1,4 +1,4 @@
-package com.att.research.mdbc.mixins;
+package com.att.research.mdbc.tables;
 
 import java.io.Serializable;
 import java.util.Deque;
@@ -16,6 +16,7 @@ public class StagingTable implements Serializable{
 	 */
 	private static final long serialVersionUID = 7583182634761771943L;
 	private transient static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(StagingTable.class);
+	//primary key -> Operation
 	private HashMap<String,Deque<Operation>> operations;
 	
 	public StagingTable() {
