@@ -1,4 +1,4 @@
-package com.att.research.mdbc.mixins;
+package com.att.research.mdbc.tables;
 
 import java.math.BigInteger;
 import java.util.Map;

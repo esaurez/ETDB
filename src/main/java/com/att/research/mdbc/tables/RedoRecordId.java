@@ -1,4 +1,4 @@
-package com.att.research.mdbc.mixins;
+package com.att.research.mdbc.tables;
 
 public final class RedoRecordId {
 	public final String leaseId;

@@ -8,7 +8,7 @@ import com.att.research.logging.format.ErrorTypes;
 import com.att.research.mdbc.mixins.MixinFactory;
 import com.att.research.mdbc.mixins.MusicInterface;
 import com.att.research.mdbc.mixins.MusicMixin;
-import com.att.research.mdbc.mixins.TxCommitProgress;
+import com.att.research.mdbc.tables.TxCommitProgress;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
