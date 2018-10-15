@@ -3,8 +3,8 @@
     {
       "tables":["table11"],
       "owner":"",
-      "titTableName":"transactioninformation",
-      "mtxdTableName":"redorecords",
+      "mriTableName":"musicrangeinformation",
+      "mtxdTableName":"musictxdigest",
       "partitionId":"",
       "replicationFactor":1
     }

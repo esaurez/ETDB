@@ -54,10 +54,10 @@ public class TablesConfiguration {
             throw new MDBCServiceException("Partition was not correctly initialized");
         }
         for(PartitionInformation partitionInfo : partitions){
-            String titTableName = partitionInfo.titTableName;
+            String titTableName = partitionInfo.mriTableName;
             titTableName = (titTableName==null || titTableName.isEmpty())?TIT_TABLE_NAME:titTableName;
             //0) Create the corresponding TIT table
-            DatabaseOperations.CreateTransactionInformationTable(musicNamespace,titTableName);
+            DatabaseOperations.CreateMusicRangeInformationTable(musicNamespace,titTableName);
             String musicTxDigestTableName = partitionInfo.mtxdTableName;
             musicTxDigestTableName = (musicTxDigestTableName==null || musicTxDigestTableName.isEmpty())? MUSIC_TX_DIGEST_TABLE_NAME :musicTxDigestTableName;
             DatabaseOperations.CreateMusicTxDigest(-1,musicNamespace,musicTxDigestTableName);
@@ -124,7 +124,7 @@ public class TablesConfiguration {
     public class PartitionInformation{
         private List<String> tables;
         private String owner;
-        private String titTableName;
+        private String mriTableName;
         private String mtxdTableName;
         private String partitionId;
         private int replicationFactor;
@@ -145,12 +145,12 @@ public class TablesConfiguration {
             this.owner = owner;
         }
 
-        public String getTitTableName() {
-            return titTableName;
+        public String getMriTableName() {
+            return mriTableName;
         }
 
-        public void setTitTableName(String titTableName) {
-            this.titTableName = titTableName;
+        public void setMriTableName(String mriTableName) {
+            this.mriTableName = mriTableName;
         }
 
         public String getPartitionId() {

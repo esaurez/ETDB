@@ -18,8 +18,8 @@ import com.google.gson.GsonBuilder;
 public class DatabasePartition {
 	private transient static EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(DatabasePartition.class);
 
-	private String transactionInformationTable;//Table that currently contains the REDO log for this partition
-	private String transactionInformationIndex;//Index that can be obtained either from
+	private String musicRangeInformationTable;//Table that currently contains the REDO log for this partition
+	private String musicRangeInformationIndex;//Index that can be obtained either from
 	private String musicTxDigestTable;
 	private String partitionId;
 	private String lockId;
@@ -34,7 +34,7 @@ public class DatabasePartition {
 		ranges = new HashSet<>();
 	}
 	
-	public DatabasePartition(Set<Range> knownRanges, String titIndex, String titTable, String partitionId, String lockId, String musicTxDigestTable) {
+	public DatabasePartition(Set<Range> knownRanges, String mriIndex, String mriTable, String partitionId, String lockId, String musicTxDigestTable) {
 		if(knownRanges != null) {
 			ranges = knownRanges;
 		}
@@ -49,18 +49,18 @@ public class DatabasePartition {
             this.setMusicTxDigestTable("");
         }
 
-		if(titIndex != null) {
-			this.setTransactionInformationIndex(titIndex);
+		if(mriIndex != null) {
+			this.setMusicRangeInformationIndex(mriIndex);
 		}
 		else {
-			this.setTransactionInformationIndex("");
+			this.setMusicRangeInformationIndex("");
 		}
 		
-		if(titTable != null) {
-			this.setTransactionInformationTable(titTable);
+		if(mriTable != null) {
+			this.setMusicRangeInformationTable(mriTable);
 		}
 		else {
-			this.setTransactionInformationTable("");
+			this.setMusicRangeInformationTable("");
 		}
 		
 		if(partitionId != null) {
@@ -78,20 +78,20 @@ public class DatabasePartition {
 		}	
 	}
 
-	public String getTransactionInformationTable() {
-		return transactionInformationTable;
+	public String getMusicRangeInformationTable() {
+		return musicRangeInformationTable;
 	}
 
-	public void setTransactionInformationTable(String transactionInformationTable) {
-		this.transactionInformationTable = transactionInformationTable;
+	public void setMusicRangeInformationTable(String musicRangeInformationTable) {
+		this.musicRangeInformationTable = musicRangeInformationTable;
 	}
 
-	public String getTransactionInformationIndex() {
-		return transactionInformationIndex;
+	public String getMusicRangeInformationIndex() {
+		return musicRangeInformationIndex;
 	}
 
-	public void setTransactionInformationIndex(String transactionInformationIndex) {
-		this.transactionInformationIndex = transactionInformationIndex;
+	public void setMusicRangeInformationIndex(String musicRangeInformationIndex) {
+		this.musicRangeInformationIndex = musicRangeInformationIndex;
 	}
 
 	/**

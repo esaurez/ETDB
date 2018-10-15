@@ -263,35 +263,7 @@ public class DatabaseOperations {
         return id;
     }
 
-    	/**
-	 * This function creates the TransactionInformation table. It contain information related
-	 * to the transactions happening in a given partition.
-	 * 	 * The schema of the table is
-	 * 		* Id, uiid.
-	 * 		* Partition, uuid id of the partition
-	 * 		* LatestApplied, int indicates which values from the redologtable wast the last to be applied to the data tables
-	 *		* Applied: boolean, indicates if all the values in this redo log table where already applied to data tables
-	 *		* Redo: list of uiids associated to the Redo Records Table
-	 *
-	 */
-	public static void CreateTransactionInformationTable( String musicNamespace, String transactionInformationTableName) throws MDBCServiceException {
-		String tableName = transactionInformationTableName;
-		String priKey = "id";
-		StringBuilder fields = new StringBuilder();
-		fields.append("id uuid, ");
-		fields.append("partition uuid, ");
-		fields.append("latestapplied int, ");
-		fields.append("applied boolean, ");
-		//TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
-		fields.append("redo list<frozen<tuple<text,tuple<text,varint>>>> ");
-		String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
-        try {
-            executeMusicWriteQuery(musicNamespace,tableName,cql);
-        } catch (MDBCServiceException e) {
-            logger.error("Initialization error: Failure to create transaction information table");
-            throw(e);
-        }
-    }
+
 
 
 
@@ -439,6 +411,36 @@ public class DatabaseOperations {
             executeMusicWriteQuery(musicNamespace,tableName,cql);
         } catch (MDBCServiceException e) {
             logger.error("Initialization error: Failure to create redo records table");
+            throw(e);
+        }
+    }
+
+    /**
+     * This function creates the TransactionInformation table. It contain information related
+     * to the transactions happening in a given partition.
+     * 	 * The schema of the table is
+     * 		* Id, uiid.
+     * 		* Partition, uuid id of the partition
+     * 		* LatestApplied, int indicates which values from the redologtable wast the last to be applied to the data tables
+     *		* Applied: boolean, indicates if all the values in this redo log table where already applied to data tables
+     *		* Redo: list of uiids associated to the Redo Records Table
+     *
+     */
+    public static void CreateMusicRangeInformationTable(String musicNamespace, String musicRangeInformationTableName) throws MDBCServiceException {
+        String tableName = musicRangeInformationTableName;
+        String priKey = "id";
+        StringBuilder fields = new StringBuilder();
+        fields.append("id uuid, ");
+        fields.append("partition uuid, ");
+        fields.append("latestapplied int, ");
+        fields.append("applied boolean, ");
+        //TODO: Frozen is only needed for old versions of cassandra, please update correspondingly
+        fields.append("redo list<frozen<tuple<text,tuple<text,varint>>>> ");
+        String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (%s, PRIMARY KEY (%s));", musicNamespace, tableName, fields, priKey);
+        try {
+            executeMusicWriteQuery(musicNamespace,tableName,cql);
+        } catch (MDBCServiceException e) {
+            logger.error("Initialization error: Failure to create transaction information table");
             throw(e);
         }
     }
