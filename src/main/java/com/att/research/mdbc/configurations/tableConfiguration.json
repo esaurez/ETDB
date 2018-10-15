@@ -4,7 +4,7 @@
       "tables":["table11"],
       "owner":"",
       "titTableName":"transactioninformation",
-      "rrtTableName":"redorecords",
+      "mtxdTableName":"redorecords",
       "partitionId":"",
       "replicationFactor":1
     }

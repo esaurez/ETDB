@@ -93,7 +93,7 @@ public class CassandraMixin implements MusicInterface {
 	public static final String PARTITION_INFORMATION_TABLE_NAME = "partitioninfo";
 	public static final String REDO_HISTORY_TABLE_NAME= "redohistory";
 	//\TODO Add logic to change the names when required and create the tables when necessary
-    private String redoRecordTableName = "redorecords";
+    private String musicTxDigestTableName = "musictxdigest";
 	private String transactionInformationTableName = "transactioninformation";
 
 	private EELFLoggerDelegate logger = EELFLoggerDelegate.getLogger(CassandraMixin.class);
@@ -222,7 +222,7 @@ public class CassandraMixin implements MusicInterface {
 	@Override
 	public void initializeMdbcDataStructures() throws MDBCServiceException {
 	    try {
-			DatabaseOperations.CreateRedoRecordsTable(-1, music_ns, redoRecordTableName);//\TODO If we start partitioning the data base, we would need to use the redotable number
+			DatabaseOperations.CreateMusicTxDigest(-1, music_ns, musicTxDigestTableName);//\TODO If we start partitioning the data base, we would need to use the redotable number
 			DatabaseOperations.CreateTransactionInformationTable(music_ns, transactionInformationTableName);
 			DatabaseOperations.CreateTableToPartitionTable(music_ns, TABLE_TO_PARTITION_TABLE_NAME);
 			DatabaseOperations.CreatePartitionInfoTable(music_ns, PARTITION_INFORMATION_TABLE_NAME);
@@ -1102,7 +1102,7 @@ public class CassandraMixin implements MusicInterface {
 	    StringBuilder cqlQuery = new StringBuilder("INSERT INTO ")
                   .append(music_ns)
                   .append('.')
-	    	      .append(redoRecordTableName)
+	    	      .append(musicTxDigestTableName)
 	    	      .append(" (leaseid,leasecounter,transactiondigest) ")
 	    	      .append("VALUES ('")
 	    	      .append( lockId ).append("',")
@@ -1131,7 +1131,7 @@ public class CassandraMixin implements MusicInterface {
                 .append("',")
                 .append(commitId)
                 .append(")");
-        PreparedQueryObject appendQuery = createAppendRRTIndexToTitQuery(transactionInformationTableName, TITIndex, redoRecordTableName, redoUuidBuilder.toString());
+        PreparedQueryObject appendQuery = createAppendRRTIndexToTitQuery(transactionInformationTableName, TITIndex, musicTxDigestTableName, redoUuidBuilder.toString());
         ReturnType returnType = MusicPureCassaCore.criticalPut(music_ns, transactionInformationTableName, TITIndex, appendQuery, lockId, null);
         if(returnType.getResult().compareTo(ResultType.SUCCESS) != 0 ){
             logger.error(EELFLoggerDelegate.errorLogger, "Error when executing append operation with return type: "+returnType.getMessage());

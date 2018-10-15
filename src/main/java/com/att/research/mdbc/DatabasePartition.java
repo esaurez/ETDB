@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.att.research.logging.EELFLoggerDelegate;
-import com.att.research.mdbc.mixins.CassandraMixin;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -21,7 +20,7 @@ public class DatabasePartition {
 
 	private String transactionInformationTable;//Table that currently contains the REDO log for this partition
 	private String transactionInformationIndex;//Index that can be obtained either from
-	private String redoRecordsTable;
+	private String musicTxDigestTable;
 	private String partitionId;
 	private String lockId;
 	protected Set<Range> ranges;
@@ -35,7 +34,7 @@ public class DatabasePartition {
 		ranges = new HashSet<>();
 	}
 	
-	public DatabasePartition(Set<Range> knownRanges, String titIndex, String titTable, String partitionId, String lockId, String redoRecordsTable) {
+	public DatabasePartition(Set<Range> knownRanges, String titIndex, String titTable, String partitionId, String lockId, String musicTxDigestTable) {
 		if(knownRanges != null) {
 			ranges = knownRanges;
 		}
@@ -43,11 +42,11 @@ public class DatabasePartition {
 			ranges = new HashSet<>();
 		}
 
-		if(redoRecordsTable != null) {
-            this.setRedoRecordsTable(redoRecordsTable);
+		if(musicTxDigestTable != null) {
+            this.setMusicTxDigestTable(musicTxDigestTable);
         }
         else{
-            this.setRedoRecordsTable("");
+            this.setMusicTxDigestTable("");
         }
 
 		if(titIndex != null) {
@@ -180,11 +179,11 @@ public class DatabasePartition {
 		this.lockId = lockId;
 	}
 
-    public String getRedoRecordsTable() {
-        return redoRecordsTable;
+    public String getMusicTxDigestTable() {
+        return musicTxDigestTable;
     }
 
-    public void setRedoRecordsTable(String redoRecordsTable) {
-        this.redoRecordsTable = redoRecordsTable;
+    public void setMusicTxDigestTable(String musicTxDigestTable) {
+        this.musicTxDigestTable = musicTxDigestTable;
     }
 }
